@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { Search, X, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { Product } from '@/lib/types'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -37,6 +37,7 @@ export function SearchBar() {
     setIsLoading(true)
     
     const searchProducts = async () => {
+      const supabase = getSupabaseClient()
       const { data } = await supabase
         .from('products')
         .select(`

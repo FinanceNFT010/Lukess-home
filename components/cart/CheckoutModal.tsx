@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { X, CheckCircle, AlertCircle } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
-import { supabase } from '@/lib/supabase/client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
@@ -45,6 +45,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setIsProcessing(true)
     
     try {
+      const supabase = getSupabaseClient()
+      
       // 1. Crear orden
       const { data: order, error: orderError } = await supabase
         .from('orders')
