@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Menu, X, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Container from "@/components/ui/Container";
+import { CartButton } from "@/components/cart/CartButton";
+import { CartDrawer } from "@/components/cart/CartDrawer";
 
 /* ───────── Constantes ───────── */
 
@@ -23,6 +25,8 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("#inicio");
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   /* ── Detectar scroll para background ── */
   useEffect(() => {
@@ -169,6 +173,11 @@ export default function Navbar() {
 
             {/* ── Acciones derecha ── */}
             <div className="flex items-center gap-3">
+              {/* Cart Button - Desktop */}
+              <div className="hidden lg:block">
+                <CartButton onClick={() => setIsCartOpen(true)} />
+              </div>
+
               {/* WhatsApp - Icono solo en mobile, completo en desktop */}
               <a
                 href={WHATSAPP_URL}
@@ -258,7 +267,7 @@ export default function Navbar() {
                   );
                 })}
 
-                {/* WhatsApp CTA mobile */}
+                {/* Cart Button mobile */}
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -267,6 +276,27 @@ export default function Navbar() {
                     duration: 0.25,
                   }}
                   className="pt-3"
+                >
+                  <button
+                    onClick={() => {
+                      setIsCartOpen(true);
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-white w-full py-3.5 rounded-xl text-sm font-semibold transition-all shadow-lg"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Ver Carrito
+                  </button>
+                </motion.div>
+
+                {/* WhatsApp CTA mobile */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: navLinks.length * 0.05 + 0.1,
+                    duration: 0.25,
+                  }}
                 >
                   <a
                     href={WHATSAPP_URL}
@@ -297,6 +327,13 @@ export default function Navbar() {
           />
         )}
       </AnimatePresence>
+
+      {/* Cart Drawer */}
+      <CartDrawer 
+        isOpen={isCartOpen} 
+        onClose={() => setIsCartOpen(false)}
+        onCheckout={() => setIsCheckoutOpen(true)}
+      />
     </>
   );
 }
