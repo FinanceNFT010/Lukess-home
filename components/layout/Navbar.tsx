@@ -7,6 +7,7 @@ import Container from "@/components/ui/Container";
 import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CheckoutModal } from "@/components/cart/CheckoutModal";
+import { SearchBar } from "@/components/search/SearchBar";
 
 /* ───────── Constantes ───────── */
 
@@ -97,7 +98,7 @@ export default function Navbar() {
         }`}
       >
         <Container>
-          <div className="flex items-center justify-between h-[72px] md:h-20">
+          <div className="flex items-center justify-between h-[72px] md:h-20 gap-4">
             {/* ── Logo ── */}
             <a
               href="#inicio"
@@ -128,6 +129,11 @@ export default function Navbar() {
                 Desde 2014
               </span>
             </a>
+
+            {/* ── SearchBar (Desktop) ── */}
+            <div className="hidden lg:flex flex-1 max-w-md mx-4">
+              <SearchBar />
+            </div>
 
             {/* ── Desktop links ── */}
             <div className="hidden lg:flex items-center gap-1">
