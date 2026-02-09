@@ -3,6 +3,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 let supabaseInstance: SupabaseClient | null = null
 
 export function getSupabaseClient() {
+  // Solo ejecutar en el cliente
+  if (typeof window === 'undefined') {
+    throw new Error('getSupabaseClient can only be called on the client side')
+  }
+
   if (supabaseInstance) {
     return supabaseInstance
   }
@@ -17,6 +22,3 @@ export function getSupabaseClient() {
   supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
   return supabaseInstance
 }
-
-// Export para compatibilidad con código existente
-export const supabase = typeof window !== 'undefined' ? getSupabaseClient() : null as any
