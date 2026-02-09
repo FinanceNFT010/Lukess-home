@@ -93,8 +93,8 @@ export default function Navbar() {
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled || isOpen
-            ? "bg-white/95 backdrop-blur-md shadow-lg"
-            : "bg-transparent"
+            ? "bg-primary-600 shadow-lg"
+            : "bg-gradient-to-r from-primary-600/95 to-primary-700/95 backdrop-blur-sm"
         }`}
       >
         <Container>
@@ -105,27 +105,13 @@ export default function Navbar() {
               onClick={(e) => scrollToSection(e, "#inicio")}
               className="flex items-center gap-1.5 shrink-0"
             >
-              <span
-                className={`text-xl sm:text-2xl md:text-[28px] font-extrabold tracking-tight transition-colors duration-300 ${
-                  scrolled || isOpen ? "text-primary-600" : "text-white"
-                }`}
-              >
+              <span className="text-xl sm:text-2xl md:text-[28px] font-extrabold tracking-tight text-white">
                 LUKESS
               </span>
-              <span
-                className={`text-[10px] sm:text-xs font-medium tracking-[0.25em] uppercase transition-colors duration-300 ${
-                  scrolled || isOpen ? "text-accent-500" : "text-accent-400"
-                }`}
-              >
+              <span className="text-[10px] sm:text-xs font-medium tracking-[0.25em] uppercase text-accent-400">
                 HOME
               </span>
-              <span
-                className={`hidden sm:inline-block text-[9px] ml-1.5 px-1.5 py-0.5 rounded border transition-colors duration-300 ${
-                  scrolled || isOpen
-                    ? "text-secondary-400 border-secondary-200"
-                    : "text-white/50 border-white/20"
-                }`}
-              >
+              <span className="hidden sm:inline-block text-[9px] ml-1.5 px-1.5 py-0.5 rounded border text-white/70 border-white/30">
                 Desde 2014
               </span>
             </a>
@@ -149,12 +135,8 @@ export default function Navbar() {
                       transition-all duration-300
                       ${
                         isActive
-                          ? scrolled
-                            ? "text-primary-600"
-                            : "text-white"
-                          : scrolled
-                            ? "text-secondary-500 hover:text-primary-600"
-                            : "text-white/70 hover:text-white"
+                          ? "text-white"
+                          : "text-white/70 hover:text-white"
                       }
                     `}
                   >
@@ -163,9 +145,7 @@ export default function Navbar() {
                     {isActive && (
                       <motion.span
                         layoutId="navbar-active"
-                        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full ${
-                          scrolled ? "bg-primary-500" : "bg-accent-400"
-                        }`}
+                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-accent-400"
                         transition={{
                           type: "spring",
                           stiffness: 380,
@@ -199,11 +179,7 @@ export default function Navbar() {
               {/* Hamburger */}
               <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`lg:hidden p-2 rounded-xl transition-all duration-200 ${
-                  scrolled || isOpen
-                    ? "text-secondary-700 hover:bg-secondary-100"
-                    : "text-white hover:bg-white/10"
-                }`}
+                className="lg:hidden p-2 rounded-xl transition-all duration-200 text-white hover:bg-white/10"
                 aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
               >
                 <AnimatePresence mode="wait" initial={false}>

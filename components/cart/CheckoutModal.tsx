@@ -1,11 +1,12 @@
 'use client'
-import { useState } from 'react'
-import { X, CheckCircle, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, CheckCircle, AlertCircle, ShoppingBag, CreditCard, PartyPopper, Sparkles } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
-import { getSupabaseClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
+import { Confetti, SparkleEffect } from '@/components/ui/Confetti'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -15,10 +16,11 @@ interface CheckoutModalProps {
 type Step = 'form' | 'qr' | 'success'
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
-  const { cart, total, clearCart } = useCart()
+  const { cart, total, clearCart, itemCount } = useCart()
   const [step, setStep] = useState<Step>('form')
   const [orderId, setOrderId] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
   
   const [customerData, setCustomerData] = useState({
     name: '',
@@ -26,27 +28,35 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     email: ''
   })
 
+  // Reset cuando se cierra el modal
+  useEffect(() => {
+    if (!isOpen) {
+      setTimeout(() => {
+        setStep('form')
+        setShowConfetti(false)
+      }, 300)
+    }
+  }, [isOpen])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     // Validar campos requeridos
     if (!customerData.name.trim() || !customerData.phone.trim()) {
-      toast.error('Por favor completa nombre y teléfono')
+      toast.error('Por favor completa nombre y teléfono', { position: 'bottom-center' })
       return
     }
     
     // Validar teléfono boliviano
     const phoneRegex = /^\d{7,8}$/
     if (!phoneRegex.test(customerData.phone.replace(/\s/g, ''))) {
-      toast.error('Número de teléfono inválido (ej: 76020369)')
+      toast.error('Número de teléfono inválido (ej: 76020369)', { position: 'bottom-center' })
       return
     }
     
     setIsProcessing(true)
     
     try {
-      const supabase = getSupabaseClient()
-      
       // 1. Crear orden
       const { data: order, error: orderError } = await supabase
         .from('orders')
@@ -84,11 +94,14 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       
       setOrderId(order.id)
       setStep('qr')
-      toast.success('Orden creada exitosamente')
+      toast.success('¡Orden creada! Procede al pago', { 
+        position: 'bottom-center',
+        icon: '🎉'
+      })
       
     } catch (error: any) {
       console.error('Error creating order:', error)
-      toast.error('Error al crear la orden: ' + error.message)
+      toast.error('Error al crear la orden: ' + (error.message || 'Intenta de nuevo'), { position: 'bottom-center' })
     } finally {
       setIsProcessing(false)
     }
@@ -96,39 +109,52 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   
   const handlePaymentConfirmed = () => {
     setStep('success')
+    setShowConfetti(true)
     
-    // Crear mensaje de WhatsApp
+    // Crear mensaje de WhatsApp con detalle de productos
+    const productList = cart.map(item => 
+      `• ${item.product.name} x${item.quantity}${item.size ? ` (${item.size})` : ''}${item.color ? ` - ${item.color}` : ''}`
+    ).join('\n')
+    
     const whatsappMessage = encodeURIComponent(
-      `Hola! Realicé un pedido #${orderId.slice(0, 8)}\n\n` +
-      `📦 Total: Bs ${total.toFixed(2)}\n` +
-      `🛍️ Items: ${cart.length}\n\n` +
-      `Ya realicé el pago por QR. ¿Pueden confirmar?`
+      `🎉 ¡Hola! Realicé un pedido en Lukess Home\n\n` +
+      `📋 *Orden #${orderId.slice(0, 8).toUpperCase()}*\n\n` +
+      `🛍️ *Productos:*\n${productList}\n\n` +
+      `💰 *Total: Bs ${total.toFixed(2)}*\n\n` +
+      `✅ Ya realicé el pago por QR. ¿Pueden confirmar mi pedido?`
     )
     
-    // Abrir WhatsApp en nueva pestaña
-    window.open(`https://wa.me/59176020369?text=${whatsappMessage}`, '_blank')
+    // Abrir WhatsApp después de un momento para ver la celebración
+    setTimeout(() => {
+      window.open(`https://wa.me/59176020369?text=${whatsappMessage}`, '_blank')
+    }, 1500)
     
-    // Limpiar carrito después de 2 segundos
+    // Limpiar carrito después de 4 segundos
     setTimeout(() => {
       clearCart()
       onClose()
       setStep('form')
       setCustomerData({ name: '', phone: '', email: '' })
-    }, 2000)
+      setShowConfetti(false)
+    }, 4000)
   }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Overlay */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          />
+    <>
+      {/* Confetti global */}
+      <Confetti isActive={showConfetti} duration={4000} />
+      
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={step !== 'success' ? onClose : undefined}
+              className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+            />
 
           {/* Modal */}
           <motion.div
@@ -139,18 +165,29 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto max-h-[90vh] overflow-y-auto">
               {/* Header */}
-              <div className="p-6 border-b-2 border-gray-100 flex items-center justify-between bg-primary-600 text-white rounded-t-2xl">
-                <h2 className="text-2xl font-bold">
-                  {step === 'form' && 'Datos de Contacto'}
-                  {step === 'qr' && 'Pagar con QR'}
-                  {step === 'success' && '¡Listo!'}
-                </h2>
-                <button
-                  onClick={onClose}
-                  className="p-1 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+              <div className={`p-6 border-b-2 border-gray-100 flex items-center justify-between rounded-t-2xl transition-colors ${
+                step === 'success' 
+                  ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' 
+                  : 'bg-primary-600 text-white'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {step === 'form' && <ShoppingBag className="w-6 h-6" />}
+                  {step === 'qr' && <CreditCard className="w-6 h-6" />}
+                  {step === 'success' && <PartyPopper className="w-6 h-6" />}
+                  <h2 className="text-2xl font-bold">
+                    {step === 'form' && 'Finalizar Compra'}
+                    {step === 'qr' && 'Pagar con QR'}
+                    {step === 'success' && '¡Compra Exitosa!'}
+                  </h2>
+                </div>
+                {step !== 'success' && (
+                  <button
+                    onClick={onClose}
+                    className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                )}
               </div>
 
               {/* Content */}
@@ -265,39 +302,96 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                 )}
                 
                 {step === 'success' && (
-                  <div className="text-center space-y-6 py-8">
+                  <div className="text-center space-y-6 py-8 relative overflow-hidden">
+                    {/* Efecto de brillos */}
+                    <SparkleEffect isActive={showConfetti} />
+                    
+                    {/* Icono animado */}
                     <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', duration: 0.5 }}
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', duration: 0.8, bounce: 0.5 }}
+                      className="relative"
                     >
-                      <CheckCircle className="w-24 h-24 text-green-500 mx-auto" />
+                      <div className="w-28 h-28 mx-auto bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-2xl shadow-green-500/30">
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.3, type: 'spring' }}
+                        >
+                          <CheckCircle className="w-16 h-16 text-white" />
+                        </motion.div>
+                      </div>
+                      
+                      {/* Anillo pulsante */}
+                      <motion.div
+                        initial={{ scale: 1, opacity: 0.5 }}
+                        animate={{ scale: 1.5, opacity: 0 }}
+                        transition={{ duration: 1, repeat: 2 }}
+                        className="absolute inset-0 w-28 h-28 mx-auto border-4 border-green-400 rounded-full"
+                      />
                     </motion.div>
                     
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                        ¡Orden Confirmada!
-                      </h3>
-                      <p className="text-gray-600">
-                        Orden #{orderId.slice(0, 8).toUpperCase()}
+                    {/* Texto de celebración */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <PartyPopper className="w-6 h-6 text-accent-500" />
+                        <h3 className="text-3xl font-black bg-gradient-to-r from-green-600 to-primary-600 bg-clip-text text-transparent">
+                          ¡Felicidades!
+                        </h3>
+                        <PartyPopper className="w-6 h-6 text-accent-500 scale-x-[-1]" />
+                      </div>
+                      <p className="text-lg text-gray-600 font-medium">
+                        Tu orden ha sido confirmada
                       </p>
-                    </div>
+                    </motion.div>
                     
-                    <div className="bg-green-50 border-2 border-green-200 p-4 rounded-lg">
-                      <p className="text-green-800 font-semibold">
-                        Te contactaremos pronto por WhatsApp
+                    {/* Número de orden */}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="bg-gradient-to-r from-primary-50 to-accent-50 p-4 rounded-xl border-2 border-primary-200"
+                    >
+                      <p className="text-sm text-gray-600 mb-1">Número de Orden</p>
+                      <p className="text-2xl font-mono font-black text-primary-600 tracking-wider">
+                        #{orderId.slice(0, 8).toUpperCase()}
                       </p>
-                      <p className="text-sm text-green-700 mt-1">
-                        Revisa tus mensajes para coordinar la entrega
+                    </motion.div>
+                    
+                    {/* Mensaje de WhatsApp */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 }}
+                      className="bg-green-50 border-2 border-green-200 p-5 rounded-xl"
+                    >
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Sparkles className="w-5 h-5 text-green-600" />
+                        <p className="text-green-800 font-bold text-lg">
+                          ¡Gracias por tu compra!
+                        </p>
+                        <Sparkles className="w-5 h-5 text-green-600" />
+                      </div>
+                      <p className="text-sm text-green-700">
+                        Te contactaremos por WhatsApp para coordinar la entrega
                       </p>
-                    </div>
+                      <p className="text-xs text-green-600 mt-2 animate-pulse">
+                        Abriendo WhatsApp...
+                      </p>
+                    </motion.div>
                   </div>
                 )}
               </div>
             </div>
           </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

@@ -70,7 +70,7 @@ public/
   og-image.svg            # Imagen Open Graph
   qr-yolo-pago.png        # QR de pago
   products/               # Imágenes de productos
-```
+``` aA
 
 ## Funcionalidades
 

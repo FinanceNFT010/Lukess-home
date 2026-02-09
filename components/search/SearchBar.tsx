@@ -72,26 +72,26 @@ export function SearchBar() {
     <div ref={searchRef} className="relative w-full max-w-md">
       {/* Input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-300 w-5 h-5" />
         <input
           type="text"
           placeholder="Buscar productos..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.length >= 2 && setIsOpen(true)}
-          className="w-full pl-10 pr-10 py-2.5 bg-white border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none transition-colors"
+          className="w-full pl-10 pr-10 py-2.5 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-lg focus:bg-white focus:border-white focus:text-gray-900 text-white placeholder:text-white/60 focus:outline-none transition-all"
         />
         {query && (
           <button
             onClick={() => { setQuery(''); setResults([]); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
           >
             <X className="w-5 h-5" />
           </button>
         )}
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+            <Loader2 className="w-5 h-5 text-accent-400 animate-spin" />
           </div>
         )}
       </div>

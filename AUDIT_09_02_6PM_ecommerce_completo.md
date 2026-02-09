@@ -770,33 +770,19 @@ LIMIT 4
 
 ---
 
-## ⚠️ CORRECCIÓN FINAL APLICADA
-
-### Problema Detectado:
-El catálogo estaba vacío porque intentaba conectar con Supabase pero la tabla `products` no existe o está vacía en la base de datos.
-
-### Solución Temporal:
-- ✅ Restaurado `lib/products.ts` con 11 productos hardcodeados
-- ✅ Restaurado `components/home/CatalogoSection.tsx` con integración al carrito
-- ✅ Simplificado `app/page.tsx` para usar productos locales
-- ✅ Carrito funciona con productos hardcodeados
-
-### Próximo Paso:
-Cuando tengas productos en Supabase, puedes volver a usar `CatalogoClient.tsx` y el fetch desde la base de datos.
-
 ## ✅ VERIFICACIONES FINALES
 
 ### Build
 ```bash
-✓ Compiled successfully in 10.6s
+✓ Compiled successfully in 8.1s
 ✓ Running TypeScript
 ✓ Generating static pages (3/3)
 ✓ Finalizing page optimization
 
 Route (app)
-┌ ○ /                    (Static - con productos hardcodeados)
+┌ ƒ /
 ├ ○ /_not-found
-└ ƒ /producto/[id]       (Dynamic - requiere productos en Supabase)
+└ ƒ /producto/[id]
 ```
 
 ### TypeScript

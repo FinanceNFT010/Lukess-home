@@ -1,10 +1,11 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import Container from '@/components/ui/Container'
-import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus } from 'lucide-react'
+import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
@@ -47,8 +48,31 @@ const cardVariants = {
   },
 }
 
+// Toast personalizado que no bloquea
+const showAddedToast = (productName: string) => {
+  toast.custom((t) => (
+    <motion.div
+      initial={{ opacity: 0, y: -20, scale: 0.9 }}
+      animate={{ opacity: t.visible ? 1 : 0, y: t.visible ? 0 : -20, scale: t.visible ? 1 : 0.9 }}
+      className="flex items-center gap-3 bg-white border-2 border-green-200 shadow-xl rounded-xl px-4 py-3 pointer-events-none"
+    >
+      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+        <Check className="w-5 h-5 text-green-600" />
+      </div>
+      <div>
+        <p className="font-semibold text-gray-900 text-sm">Agregado al carrito</p>
+        <p className="text-xs text-gray-500 truncate max-w-[180px]">{productName}</p>
+      </div>
+    </motion.div>
+  ), { duration: 1500, position: 'bottom-center' })
+}
+
 export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
+  const [selectedBrand, setSelectedBrand] = useState<string>('Todas')
+  const [selectedColor, setSelectedColor] = useState<string>('Todos')
+  const [showFilters, setShowFilters] = useState(false)
+  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('all')
   const { addToCart } = useCart()
   const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.05 })
 
@@ -61,34 +85,91 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     return ['Todos', ...Array.from(cats).sort()]
   }, [initialProducts])
 
-  // Filtrar productos
-  const filteredProducts = useMemo(() => {
-    if (selectedCategory === 'Todos') return initialProducts
-    return initialProducts.filter(p => p.categories?.name === selectedCategory)
-  }, [selectedCategory, initialProducts])
+  // Extraer marcas únicas
+  const brands = useMemo(() => {
+    const brandSet = new Set<string>()
+    initialProducts.forEach(p => {
+      if (p.brand) brandSet.add(p.brand)
+    })
+    return ['Todas', ...Array.from(brandSet).sort()]
+  }, [initialProducts])
+
+  // Extraer colores únicos
+  const colors = useMemo(() => {
+    const colorSet = new Set<string>()
+    initialProducts.forEach(p => {
+      if (p.colors && Array.isArray(p.colors)) {
+        p.colors.forEach(c => colorSet.add(c))
+      }
+    })
+    return ['Todos', ...Array.from(colorSet).sort()]
+  }, [initialProducts])
 
   // Calcular stock total
-  const getTotalStock = (product: Product): number => {
+  const getTotalStock = useCallback((product: Product): number => {
     return product.inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0
+  }, [])
+
+  // Filtrar productos con todos los filtros
+  const filteredProducts = useMemo(() => {
+    return initialProducts.filter(p => {
+      // Filtro por categoría
+      if (selectedCategory !== 'Todos' && p.categories?.name !== selectedCategory) return false
+      
+      // Filtro por marca
+      if (selectedBrand !== 'Todas' && p.brand !== selectedBrand) return false
+      
+      // Filtro por color
+      if (selectedColor !== 'Todos') {
+        if (!p.colors || !p.colors.includes(selectedColor)) return false
+      }
+      
+      // Filtro por stock
+      const stock = getTotalStock(p)
+      if (stockFilter === 'inStock' && stock === 0) return false
+      if (stockFilter === 'lowStock' && (stock === 0 || stock >= 5)) return false
+      
+      return true
+    })
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, initialProducts, getTotalStock])
+
+  // Contar filtros activos
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (selectedCategory !== 'Todos') count++
+    if (selectedBrand !== 'Todas') count++
+    if (selectedColor !== 'Todos') count++
+    if (stockFilter !== 'all') count++
+    return count
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter])
+
+  // Limpiar todos los filtros
+  const clearAllFilters = () => {
+    setSelectedCategory('Todos')
+    setSelectedBrand('Todas')
+    setSelectedColor('Todos')
+    setStockFilter('all')
   }
 
   const handleAddToCart = (product: Product) => {
     const stock = getTotalStock(product)
     if (stock === 0) {
-      toast.error('Producto sin stock')
+      toast.error('Producto sin stock', { position: 'bottom-center', duration: 1500 })
       return
     }
     
     addToCart(product, 1)
-    toast.success(`${product.name} agregado al carrito`)
+    showAddedToast(product.name)
   }
 
   const handleWhatsAppConsult = (product: Product) => {
     const message = encodeURIComponent(
       `Hola! Estoy interesado en:\n\n` +
       `📦 ${product.name}\n` +
-      `💰 Precio: Bs ${product.price.toFixed(2)}\n\n` +
-      `¿Tienen disponible?`
+      `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
+      `${product.brand ? `🏷️ Marca: ${product.brand}\n` : ''}` +
+      `${product.colors?.length ? `🎨 Colores: ${product.colors.join(', ')}\n` : ''}` +
+      `\n¿Tienen disponible?`
     )
     window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
   }
@@ -130,33 +211,167 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             </div>
           </motion.div>
 
-          {/* ── Filtros ── */}
+          {/* ── Barra de Filtros ── */}
           <motion.div
             variants={headingVariants}
-            className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-10 md:mb-14"
-            role="tablist"
-            aria-label="Filtrar por categoría"
+            className="mb-8 md:mb-12"
           >
-            {categories.map((cat) => (
+            {/* Categorías principales */}
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-4">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`
+                    px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
+                    transition-all duration-300
+                    ${
+                      selectedCategory === cat
+                        ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25 scale-105'
+                        : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
+                    }
+                  `}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Botón de filtros avanzados + contador */}
+            <div className="flex items-center justify-center gap-3">
               <button
-                key={cat}
-                role="tab"
-                aria-selected={selectedCategory === cat}
-                aria-label={`Filtrar por ${cat}`}
-                onClick={() => setSelectedCategory(cat)}
-                className={`
-                  px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
-                  transition-all duration-300
-                  ${
-                    selectedCategory === cat
-                      ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25 scale-105'
-                      : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
-                  }
-                `}
+                onClick={() => setShowFilters(!showFilters)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  showFilters || activeFiltersCount > 0
+                    ? 'bg-primary-100 text-primary-700 border-2 border-primary-300'
+                    : 'bg-secondary-50 text-secondary-600 border-2 border-secondary-200 hover:border-secondary-300'
+                }`}
               >
-                {cat}
+                <SlidersHorizontal className="w-4 h-4" />
+                Filtros Avanzados
+                {activeFiltersCount > 0 && (
+                  <span className="bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {activeFiltersCount}
+                  </span>
+                )}
               </button>
-            ))}
+
+              {activeFiltersCount > 0 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                  Limpiar
+                </button>
+              )}
+
+              <span className="text-sm text-secondary-500">
+                {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {/* Panel de filtros avanzados */}
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-6 p-6 bg-secondary-50 rounded-2xl border border-secondary-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Filtro por Marca */}
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-3">
+                          <Building2 className="w-4 h-4 text-primary-500" />
+                          Marca
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {brands.map((brand) => (
+                            <button
+                              key={brand}
+                              onClick={() => setSelectedBrand(brand)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                selectedBrand === brand
+                                  ? 'bg-primary-500 text-white'
+                                  : 'bg-white text-secondary-600 border border-secondary-200 hover:border-primary-300'
+                              }`}
+                            >
+                              {brand}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filtro por Color */}
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-3">
+                          <Palette className="w-4 h-4 text-primary-500" />
+                          Color
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {colors.map((color) => (
+                            <button
+                              key={color}
+                              onClick={() => setSelectedColor(color)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                selectedColor === color
+                                  ? 'bg-primary-500 text-white'
+                                  : 'bg-white text-secondary-600 border border-secondary-200 hover:border-primary-300'
+                              }`}
+                            >
+                              {color}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filtro por Stock */}
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-3">
+                          <Ruler className="w-4 h-4 text-primary-500" />
+                          Disponibilidad
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => setStockFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              stockFilter === 'all'
+                                ? 'bg-primary-500 text-white'
+                                : 'bg-white text-secondary-600 border border-secondary-200 hover:border-primary-300'
+                            }`}
+                          >
+                            Todos
+                          </button>
+                          <button
+                            onClick={() => setStockFilter('inStock')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              stockFilter === 'inStock'
+                                ? 'bg-green-500 text-white'
+                                : 'bg-white text-secondary-600 border border-secondary-200 hover:border-green-300'
+                            }`}
+                          >
+                            En Stock
+                          </button>
+                          <button
+                            onClick={() => setStockFilter('lowStock')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              stockFilter === 'lowStock'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-white text-secondary-600 border border-secondary-200 hover:border-amber-300'
+                            }`}
+                          >
+                            Últimas unidades
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* ── Grid ── */}
@@ -228,47 +443,81 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
 
                     {/* Info */}
                     <div className="p-4 sm:p-5">
-                      {/* Categoría */}
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Tag className="w-3 h-3 text-primary-400" aria-hidden="true" />
-                        <span className="text-xs text-secondary-400 font-medium uppercase tracking-wide">
-                          {product.categories?.name || 'Sin categoría'}
-                        </span>
+                      {/* Categoría + Marca */}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Tag className="w-3 h-3 text-primary-400" aria-hidden="true" />
+                          <span className="text-xs text-secondary-400 font-medium uppercase tracking-wide">
+                            {product.categories?.name || 'Sin categoría'}
+                          </span>
+                        </div>
+                        {product.brand && (
+                          <span className="text-[10px] bg-accent-100 text-accent-700 px-2 py-0.5 rounded-full font-semibold">
+                            {product.brand}
+                          </span>
+                        )}
                       </div>
 
-                      {/* Nombre */}
-                      <h3 className="text-sm sm:text-base font-bold text-secondary-800 mb-1.5 leading-snug line-clamp-2 min-h-[2.5rem]">
-                        {product.name}
-                      </h3>
+                      {/* Nombre - clickeable para ir al detalle */}
+                      <Link href={`/producto/${product.id}`}>
+                        <h3 className="text-sm sm:text-base font-bold text-secondary-800 mb-1.5 leading-snug line-clamp-2 min-h-[2.5rem] hover:text-primary-600 transition-colors cursor-pointer">
+                          {product.name}
+                        </h3>
+                      </Link>
 
                       {/* Descripción */}
                       {product.description && (
-                        <p className="text-xs text-secondary-400 mb-3 line-clamp-2 min-h-[2rem]">
+                        <p className="text-xs text-secondary-400 mb-2 line-clamp-2">
                           {product.description}
                         </p>
                       )}
 
+                      {/* Colores disponibles */}
+                      {product.colors && product.colors.length > 0 && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <Palette className="w-3 h-3 text-secondary-400" />
+                          <div className="flex flex-wrap gap-1">
+                            {product.colors.slice(0, 3).map((color) => (
+                              <span
+                                key={color}
+                                className="text-[10px] text-secondary-500 bg-secondary-100 rounded px-1.5 py-0.5"
+                              >
+                                {color}
+                              </span>
+                            ))}
+                            {product.colors.length > 3 && (
+                              <span className="text-[10px] text-secondary-400">
+                                +{product.colors.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Tallas */}
                       {product.sizes && product.sizes.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {product.sizes.slice(0, 4).map((size) => (
-                            <span
-                              key={size}
-                              className="text-[10px] text-secondary-400 border border-secondary-200 rounded px-1.5 py-0.5"
-                            >
-                              {size}
-                            </span>
-                          ))}
-                          {product.sizes.length > 4 && (
-                            <span className="text-[10px] text-secondary-400 border border-secondary-200 rounded px-1.5 py-0.5">
-                              +{product.sizes.length - 4}
-                            </span>
-                          )}
+                        <div className="flex items-center gap-2 mb-3">
+                          <Ruler className="w-3 h-3 text-secondary-400" />
+                          <div className="flex flex-wrap gap-1">
+                            {product.sizes.slice(0, 4).map((size) => (
+                              <span
+                                key={size}
+                                className="text-[10px] text-secondary-400 border border-secondary-200 rounded px-1.5 py-0.5"
+                              >
+                                {size}
+                              </span>
+                            ))}
+                            {product.sizes.length > 4 && (
+                              <span className="text-[10px] text-secondary-400 border border-secondary-200 rounded px-1.5 py-0.5">
+                                +{product.sizes.length - 4}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {/* Precio + Stock */}
-                      <div className="flex items-end justify-between">
+                      <div className="flex items-end justify-between pt-2 border-t border-secondary-100">
                         <div>
                           <span className="text-2xl font-black text-primary-500">
                             {product.price}
@@ -277,9 +526,13 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                             Bs
                           </span>
                         </div>
-                        <span className="text-xs text-secondary-500 font-medium">
-                          Stock: {stock}
-                        </span>
+                        <div className="text-right">
+                          <span className={`text-xs font-semibold ${
+                            stock === 0 ? 'text-red-500' : stock < 5 ? 'text-amber-500' : 'text-green-500'
+                          }`}>
+                            {stock === 0 ? 'Agotado' : stock < 5 ? `¡Solo ${stock}!` : `${stock} disponibles`}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
