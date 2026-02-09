@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Container from "@/components/ui/Container";
 import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+import { CheckoutModal } from "@/components/cart/CheckoutModal";
 
 /* ───────── Constantes ───────── */
 
@@ -333,6 +334,12 @@ export default function Navbar() {
         isOpen={isCartOpen} 
         onClose={() => setIsCartOpen(false)}
         onCheckout={() => setIsCheckoutOpen(true)}
+      />
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
       />
     </>
   );

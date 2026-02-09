@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppFloat from "@/components/layout/WhatsAppFloat";
 import { CartProvider } from "@/lib/context/CartContext";
+import { Toaster } from "react-hot-toast";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -110,6 +111,7 @@ export default function RootLayout({
           <main role="main">{children}</main>
           <Footer />
           <WhatsAppFloat />
+          <Toaster position="top-right" />
         </CartProvider>
       </body>
     </html>
