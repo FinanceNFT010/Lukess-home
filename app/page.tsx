@@ -25,8 +25,20 @@ export default async function Home() {
     .order('created_at', { ascending: false })
   
   if (error) {
-    console.error('Error fetching products:', error)
+    console.error('Error fetching products:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
   }
+  
+  // Log para debugging en Vercel
+  console.log('Products fetched:', {
+    count: products?.length || 0,
+    hasError: !!error,
+    errorMessage: error?.message
+  })
   
   return (
     <>
