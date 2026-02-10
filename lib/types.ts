@@ -9,6 +9,7 @@ export interface Product {
   sizes: string[] | null
   colors: string[] | null
   image_url: string | null
+  images?: string[] | null  // Array de URLs de imágenes para galería
   is_active: boolean
   category_id: string | null
   created_at: string

@@ -8,6 +8,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
+import { ProductGallery } from './ProductGallery'
 
 interface ProductDetailProps {
   product: Product
@@ -89,22 +90,21 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
       <section className="py-12 bg-white">
         <Container>
           <div className="grid lg:grid-cols-2 gap-12">
-            {/* Image */}
+            {/* Gallery */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="relative aspect-square bg-gray-100 rounded-2xl overflow-hidden"
             >
-              <Image
-                src={product.image_url || '/placeholder.png'}
-                alt={product.name}
-                fill
-                className="object-cover"
-                priority
+              <ProductGallery 
+                images={product.images && product.images.length > 0 
+                  ? product.images 
+                  : [product.image_url || '/placeholder.png']
+                }
+                productName={product.name}
               />
               {isOutOfStock && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="bg-red-600 text-white px-6 py-3 rounded-full text-lg font-bold">
+                <div className="mt-4 bg-red-50 border-2 border-red-200 rounded-lg p-4 text-center">
+                  <span className="text-red-600 font-bold text-lg">
                     Sin Stock
                   </span>
                 </div>
