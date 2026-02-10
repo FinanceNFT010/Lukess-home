@@ -9,7 +9,6 @@ import Link from 'next/link'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
-import { useSearchParams } from 'next/navigation'
 
 interface CatalogoClientProps {
   initialProducts: Product[]
@@ -67,7 +66,6 @@ const showAddedToast = (productName: string) => {
 }
 
 export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
-  const searchParams = useSearchParams()
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
   const [selectedBrand, setSelectedBrand] = useState<string>('Todas')
   const [selectedColor, setSelectedColor] = useState<string>('Todos')
@@ -83,29 +81,47 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     rootMargin: '50px'
   })
 
-  // Detectar filtros desde URL (navbar)
+  // Detectar filtros desde URL hash (navbar)
   useEffect(() => {
-    const filter = searchParams.get('filter')
-    const subcategory = searchParams.get('subcategory')
-    
-    if (filter === 'nuevo') {
-      setShowNew(true)
-      setSelectedCategory('Todos')
-    } else if (filter === 'descuento') {
-      setShowDiscount(true)
-      setSelectedCategory('Todos')
-    } else if (filter === 'camisas') {
-      setSelectedCategory('Camisas')
-      if (subcategory) setSelectedBrand(subcategory)
-    } else if (filter === 'pantalones') {
-      setSelectedCategory('Pantalones')
-      if (subcategory) setSelectedBrand(subcategory)
-    } else if (filter === 'blazers') {
-      setSelectedCategory('Blazers')
-    } else if (filter === 'accesorios') {
-      setSelectedCategory('Accesorios')
+    const handleHashChange = () => {
+      const hash = window.location.hash
+      const params = new URLSearchParams(hash.split('?')[1] || '')
+      const filter = params.get('filter')
+      const subcategory = params.get('subcategory')
+      
+      if (filter === 'nuevo') {
+        setShowNew(true)
+        setShowDiscount(false)
+        setSelectedCategory('Todos')
+      } else if (filter === 'descuento') {
+        setShowDiscount(true)
+        setShowNew(false)
+        setSelectedCategory('Todos')
+      } else if (filter === 'camisas') {
+        setSelectedCategory('Camisas')
+        setShowNew(false)
+        setShowDiscount(false)
+        if (subcategory) setSelectedBrand(subcategory)
+      } else if (filter === 'pantalones') {
+        setSelectedCategory('Pantalones')
+        setShowNew(false)
+        setShowDiscount(false)
+        if (subcategory) setSelectedBrand(subcategory)
+      } else if (filter === 'blazers') {
+        setSelectedCategory('Blazers')
+        setShowNew(false)
+        setShowDiscount(false)
+      } else if (filter === 'accesorios') {
+        setSelectedCategory('Accesorios')
+        setShowNew(false)
+        setShowDiscount(false)
+      }
     }
-  }, [searchParams])
+    
+    handleHashChange()
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   // Extraer categorías únicas
   const categories = useMemo(() => {
@@ -463,16 +479,8 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
           </motion.div>
 
           {/* ── Grid ── */}
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key={selectedCategory}
-              initial="hidden"
-              animate="visible"
-              exit="hidden"
-              variants={sectionVariants}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6"
-            >
-              {filteredProducts.slice(0, displayLimit).map((product) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6">
+            {filteredProducts.slice(0, displayLimit).map((product, index) => {
                 const stock = getTotalStock(product)
                 const isOutOfStock = stock === 0
                 
@@ -684,8 +692,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   </motion.div>
                 )
               })}
-            </motion.div>
-          </AnimatePresence>
+          </div>
 
           {/* ── Botón Cargar Más ── */}
           {filteredProducts.length > displayLimit && (
