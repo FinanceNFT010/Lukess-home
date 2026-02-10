@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
+import { FilterSidebar, type Filters } from '@/components/catalogo/FilterSidebar'
 
 interface CatalogoClientProps {
   initialProducts: Product[]
@@ -70,6 +71,15 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   const [selectedBrand, setSelectedBrand] = useState<string>('Todas')
   const [selectedColor, setSelectedColor] = useState<string>('Todos')
   const [showFilters, setShowFilters] = useState(false)
+  const [showSidebar, setShowSidebar] = useState(false)
+  const [sidebarFilters, setSidebarFilters] = useState<Filters>({
+    priceRange: [0, 1000],
+    brands: [],
+    colors: [],
+    sizes: [],
+    inStock: null,
+    category: null,
+  })
   const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('all')
   const [showNew, setShowNew] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
@@ -166,25 +176,43 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       // Filtro por "DESCUENTO"
       if (showDiscount && !p.discount_percentage) return false
       
-      // Filtro por categoría
+      // Filtros del sidebar - Precio
+      if (p.price < sidebarFilters.priceRange[0] || p.price > sidebarFilters.priceRange[1]) return false
+      
+      // Filtros del sidebar - Marca
+      if (sidebarFilters.brands.length > 0 && p.brand && !sidebarFilters.brands.includes(p.brand)) return false
+      
+      // Filtros del sidebar - Color
+      if (sidebarFilters.colors.length > 0 && (!p.colors || !p.colors.some(c => sidebarFilters.colors.includes(c)))) return false
+      
+      // Filtros del sidebar - Talla
+      if (sidebarFilters.sizes.length > 0 && (!p.sizes || !p.sizes.some(s => sidebarFilters.sizes.includes(s)))) return false
+      
+      // Filtros del sidebar - Stock
+      const stock = getTotalStock(p)
+      if (sidebarFilters.inStock && stock === 0) return false
+      
+      // Filtros del sidebar - Categoría
+      if (sidebarFilters.category && p.categories?.name !== sidebarFilters.category) return false
+      
+      // Filtro por categoría (botones superiores)
       if (selectedCategory !== 'Todos' && p.categories?.name !== selectedCategory) return false
       
-      // Filtro por marca
+      // Filtro por marca (botones superiores)
       if (selectedBrand !== 'Todas' && p.brand !== selectedBrand) return false
       
-      // Filtro por color
+      // Filtro por color (botones superiores)
       if (selectedColor !== 'Todos') {
         if (!p.colors || !p.colors.includes(selectedColor)) return false
       }
       
-      // Filtro por stock
-      const stock = getTotalStock(p)
+      // Filtro por stock (botones superiores)
       if (stockFilter === 'inStock' && stock === 0) return false
       if (stockFilter === 'lowStock' && (stock === 0 || stock >= 5)) return false
       
       return true
     })
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, initialProducts, getTotalStock])
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, sidebarFilters, initialProducts, getTotalStock])
 
   // Contar filtros activos
   const activeFiltersCount = useMemo(() => {
@@ -344,6 +372,14 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             {/* Botón de filtros avanzados + contador */}
             <div className="flex items-center justify-center gap-3">
               <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white bg-primary-800 hover:bg-primary-900 transition-all shadow-lg"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                Filtros Avanzados
+              </button>
+
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   showFilters || activeFiltersCount > 0
@@ -351,8 +387,8 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                     : 'bg-secondary-50 text-secondary-600 border-2 border-secondary-200 hover:border-secondary-300'
                 }`}
               >
-                <SlidersHorizontal className="w-4 h-4" />
-                Filtros Avanzados
+                <Filter className="w-4 h-4" />
+                Más Filtros
                 {activeFiltersCount > 0 && (
                   <span className="bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                     {activeFiltersCount}
@@ -478,9 +514,32 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             </AnimatePresence>
           </motion.div>
 
-          {/* ── Grid ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6">
-            {filteredProducts.slice(0, displayLimit).map((product, index) => {
+          {/* ── Layout con Sidebar ── */}
+          <div className="flex gap-6">
+            {/* Sidebar de filtros */}
+            <AnimatePresence>
+              {showSidebar && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="hidden lg:block"
+                >
+                  <FilterSidebar
+                    onFilterChange={setSidebarFilters}
+                    brands={brands.filter(b => b !== 'Todas')}
+                    colors={colors.filter(c => c !== 'Todos')}
+                    categories={categories.filter(c => c !== 'Todos')}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Grid de productos */}
+            <div className="flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6">
+                {filteredProducts.slice(0, displayLimit).map((product, index) => {
                 const stock = getTotalStock(product)
                 const isOutOfStock = stock === 0
                 
@@ -692,39 +751,41 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   </motion.div>
                 )
               })}
-          </div>
+              </div>
 
-          {/* ── Botón Cargar Más ── */}
-          {filteredProducts.length > displayLimit && (
-            <div className="text-center mt-8">
-              <button
-                onClick={() => setDisplayLimit(prev => prev + 12)}
-                className="inline-flex items-center gap-2 bg-primary-800 hover:bg-primary-900 text-white px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg"
+              {/* ── Botón Cargar Más ── */}
+              {filteredProducts.length > displayLimit && (
+                <div className="text-center mt-8">
+                  <button
+                    onClick={() => setDisplayLimit(prev => prev + 12)}
+                    className="inline-flex items-center gap-2 bg-primary-800 hover:bg-primary-900 text-white px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Cargar más productos ({filteredProducts.length - displayLimit} restantes)
+                  </button>
+                </div>
+              )}
+
+              {/* ── CTA inferior ── */}
+              <motion.div
+                variants={headingVariants}
+                className="text-center mt-12 md:mt-16"
               >
-                <Plus className="w-4 h-4" />
-                Cargar más productos ({filteredProducts.length - displayLimit} restantes)
-              </button>
+                <p className="text-secondary-400 text-sm mb-4">
+                  ¿No encontraste lo que buscas? Tenemos mucho más en tienda
+                </p>
+                <a
+                  href="https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20quiero%20consultar%20sobre%20otros%20productos"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-secondary-800 hover:bg-secondary-700 text-white px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg shadow-secondary-800/25"
+                >
+                  <Plus className="w-4 h-4" />
+                  Pregunta por más productos
+                </a>
+              </motion.div>
             </div>
-          )}
-
-          {/* ── CTA inferior ── */}
-          <motion.div
-            variants={headingVariants}
-            className="text-center mt-12 md:mt-16"
-          >
-            <p className="text-secondary-400 text-sm mb-4">
-              ¿No encontraste lo que buscas? Tenemos mucho más en tienda
-            </p>
-            <a
-              href="https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20quiero%20consultar%20sobre%20otros%20productos"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-secondary-800 hover:bg-secondary-700 text-white px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg shadow-secondary-800/25"
-            >
-              <Plus className="w-4 h-4" />
-              Pregunta por más productos
-            </a>
-          </motion.div>
+          </div>
         </motion.div>
       </Container>
     </section>
