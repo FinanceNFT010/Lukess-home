@@ -25,7 +25,9 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
           alt={`${productName} - Imagen ${currentIndex + 1}`}
           fill
           className="object-cover"
-          priority
+          priority={currentIndex === 0}
+          quality={85}
+          sizes="(max-width: 768px) 100vw, 50vw"
         />
         
         {/* Botón zoom */}
@@ -89,6 +91,9 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                 alt={`Thumbnail ${i + 1}`}
                 fill
                 className="object-cover"
+                loading="lazy"
+                quality={60}
+                sizes="100px"
               />
             </button>
           ))}

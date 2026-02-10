@@ -20,7 +20,7 @@ const sectionVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.03, delayChildren: 0 },
   },
 } as const
 
@@ -34,17 +34,15 @@ const headingVariants = {
 }
 
 const cardVariants = {
-  hidden: { opacity: 0, scale: 0.95, y: 20 },
+  hidden: { opacity: 0, y: 10 },
   visible: {
     opacity: 1,
-    scale: 1,
     y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
+    transition: { duration: 0.2, ease: 'easeOut' as const },
   },
   exit: {
     opacity: 0,
-    scale: 0.95,
-    transition: { duration: 0.2, ease: 'easeIn' as const },
+    transition: { duration: 0.1, ease: 'easeIn' as const },
   },
 }
 
@@ -73,8 +71,13 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   const [selectedColor, setSelectedColor] = useState<string>('Todos')
   const [showFilters, setShowFilters] = useState(false)
   const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('all')
+  const [displayLimit, setDisplayLimit] = useState(12) // Cargar solo 12 productos inicialmente
   const { addToCart } = useCart()
-  const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.05 })
+  const { ref, inView } = useInView({ 
+    triggerOnce: true, 
+    threshold: 0.05,
+    rootMargin: '50px'
+  })
 
   // Extraer categorías únicas
   const categories = useMemo(() => {
@@ -384,7 +387,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
               variants={sectionVariants}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6"
             >
-              {filteredProducts.map((product) => {
+              {filteredProducts.slice(0, displayLimit).map((product) => {
                 const stock = getTotalStock(product)
                 const isOutOfStock = stock === 0
                 
@@ -392,8 +395,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   <motion.div
                     key={product.id}
                     variants={cardVariants}
-                    layout
-                    className="group bg-white rounded-2xl border border-secondary-100 hover:border-primary-300 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 hover:-translate-y-1"
+                    className="group bg-white rounded-2xl border border-secondary-100 hover:border-primary-300 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 md:hover:-translate-y-1"
                   >
                     {/* Imagen */}
                     <div className="relative aspect-[4/5] overflow-hidden bg-white p-4">
@@ -402,8 +404,9 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         alt={product.name}
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                        className="object-contain transition-transform duration-500 group-hover:scale-105"
+                        className="object-contain transition-transform duration-300 group-hover:scale-105"
                         loading="lazy"
+                        quality={75}
                       />
 
                       {/* Badge de Stock */}
@@ -562,6 +565,19 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
               })}
             </motion.div>
           </AnimatePresence>
+
+          {/* ── Botón Cargar Más ── */}
+          {filteredProducts.length > displayLimit && (
+            <div className="text-center mt-8">
+              <button
+                onClick={() => setDisplayLimit(prev => prev + 12)}
+                className="inline-flex items-center gap-2 bg-primary-800 hover:bg-primary-900 text-white px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg"
+              >
+                <Plus className="w-4 h-4" />
+                Cargar más productos ({filteredProducts.length - displayLimit} restantes)
+              </button>
+            </div>
+          )}
 
           {/* ── CTA inferior ── */}
           <motion.div
