@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Menu, X, MessageCircle } from "lucide-react";
+import { Menu, X, MessageCircle, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import Container from "@/components/ui/Container";
 import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
@@ -14,9 +15,51 @@ import { SearchBar } from "@/components/search/SearchBar";
 const WHATSAPP_URL =
   "https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20me%20interesa%20conocer%20sus%20productos";
 
-const navLinks = [
-  { href: "#inicio", label: "Inicio" },
-  { href: "#catalogo", label: "Catálogo" },
+const categories = [
+  {
+    name: 'NUEVO',
+    href: '#catalogo',
+    featured: [
+      { name: 'Recién llegados', href: '#catalogo' },
+      { name: 'Ofertas de semana', href: '#catalogo' },
+    ]
+  },
+  {
+    name: 'CAMISAS',
+    href: '#catalogo',
+    subcategories: [
+      { name: 'Columbia', href: '#catalogo' },
+      { name: 'Manga larga', href: '#catalogo' },
+      { name: 'Manga corta', href: '#catalogo' },
+      { name: 'Elegantes', href: '#catalogo' },
+    ]
+  },
+  {
+    name: 'PANTALONES',
+    href: '#catalogo',
+    subcategories: [
+      { name: 'Oversize', href: '#catalogo' },
+      { name: 'Jeans', href: '#catalogo' },
+      { name: 'Elegantes', href: '#catalogo' },
+    ]
+  },
+  {
+    name: 'BLAZERS',
+    href: '#catalogo',
+  },
+  {
+    name: 'ACCESORIOS',
+    href: '#catalogo',
+    subcategories: [
+      { name: 'Sombreros', href: '#catalogo' },
+      { name: 'Gorras', href: '#catalogo' },
+      { name: 'Cinturones', href: '#catalogo' },
+      { name: 'Billeteras', href: '#catalogo' },
+    ]
+  },
+];
+
+const quickLinks = [
   { href: "#ubicacion", label: "Ubicación" },
   { href: "#contacto", label: "Contacto" },
 ];
@@ -39,7 +82,8 @@ export default function Navbar() {
 
   /* ── Detectar sección activa vía IntersectionObserver ── */
   useEffect(() => {
-    const sectionIds = navLinks.map((l) => l.href.replace("#", ""));
+    const allLinks = [...categories.map(c => c.href), ...quickLinks.map(l => l.href)];
+    const sectionIds = [...new Set(allLinks)].map((l) => l.replace("#", ""));
     const observers: IntersectionObserver[] = [];
 
     sectionIds.forEach((id) => {
@@ -93,8 +137,8 @@ export default function Navbar() {
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled || isOpen
-            ? "bg-primary-600 shadow-lg"
-            : "bg-gradient-to-r from-primary-600/95 to-primary-700/95 backdrop-blur-sm"
+            ? "bg-white shadow-lg"
+            : "bg-white/95 backdrop-blur-md"
         }`}
       >
         <Container>
@@ -105,61 +149,92 @@ export default function Navbar() {
               onClick={(e) => scrollToSection(e, "#inicio")}
               className="flex items-center gap-1.5 shrink-0"
             >
-              <span className="text-xl sm:text-2xl md:text-[28px] font-extrabold tracking-tight text-white">
+              <span className="text-xl sm:text-2xl md:text-[28px] font-extrabold tracking-tight text-primary-800">
                 LUKESS
               </span>
-              <span className="text-[10px] sm:text-xs font-medium tracking-[0.25em] uppercase text-accent-400">
+              <span className="text-[10px] sm:text-xs font-medium tracking-[0.25em] uppercase text-accent-500">
                 HOME
               </span>
-              <span className="hidden sm:inline-block text-[9px] ml-1.5 px-1.5 py-0.5 rounded border text-white/70 border-white/30">
+              <span className="hidden sm:inline-block text-[9px] ml-1.5 px-1.5 py-0.5 rounded border text-gray-600 border-gray-300">
                 Desde 2014
               </span>
             </a>
 
-            {/* ── SearchBar (Desktop) ── */}
-            <div className="hidden lg:flex flex-1 max-w-md mx-4">
-              <SearchBar />
-            </div>
-
-            {/* ── Desktop links ── */}
-            <div className="hidden lg:flex items-center gap-1">
-              {navLinks.map((link) => {
-                const isActive = activeSection === link.href;
-                return (
+            {/* ── Desktop Mega Menu ── */}
+            <div className="hidden lg:flex items-center gap-1 flex-1 justify-center">
+              {categories.map((category) => (
+                <div key={category.name} className="relative group">
                   <a
-                    key={link.href}
-                    href={link.href}
-                    onClick={(e) => scrollToSection(e, link.href)}
-                    className={`
-                      relative px-4 py-2 rounded-full text-sm font-medium tracking-wide
-                      transition-all duration-300
-                      ${
-                        isActive
-                          ? "text-white"
-                          : "text-white/70 hover:text-white"
-                      }
-                    `}
+                    href={category.href}
+                    onClick={(e) => scrollToSection(e, category.href)}
+                    className="flex items-center gap-1 text-sm font-semibold text-gray-800 hover:text-primary-800 transition-colors px-3 py-2"
                   >
-                    {link.label}
-                    {/* Indicador activo */}
-                    {isActive && (
-                      <motion.span
-                        layoutId="navbar-active"
-                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-accent-400"
-                        transition={{
-                          type: "spring",
-                          stiffness: 380,
-                          damping: 30,
-                        }}
-                      />
+                    {category.name}
+                    {(category.subcategories || category.featured) && (
+                      <ChevronDown className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
                     )}
                   </a>
-                );
-              })}
+                  
+                  {/* Mega menu dropdown */}
+                  {category.subcategories && (
+                    <div className="absolute left-0 top-full mt-2 w-48 bg-white shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 border border-gray-100">
+                      <div className="py-3 px-4">
+                        {category.subcategories.map((sub) => (
+                          <a
+                            key={sub.name}
+                            href={sub.href}
+                            onClick={(e) => scrollToSection(e, sub.href)}
+                            className="block py-2 text-sm text-gray-700 hover:text-primary-800 hover:translate-x-1 transition-all"
+                          >
+                            {sub.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Featured dropdown para NUEVO */}
+                  {category.featured && (
+                    <div className="absolute left-0 top-full mt-2 w-56 bg-white shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 border border-gray-100">
+                      <div className="py-3 px-4">
+                        {category.featured.map((item) => (
+                          <a
+                            key={item.name}
+                            href={item.href}
+                            onClick={(e) => scrollToSection(e, item.href)}
+                            className="block py-2 text-sm font-medium text-gray-700 hover:text-primary-800 hover:translate-x-1 transition-all"
+                          >
+                            <span className="inline-block w-2 h-2 rounded-full bg-accent-400 mr-2"></span>
+                            {item.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Quick Links */}
+              <div className="h-5 w-px bg-gray-200 mx-2"></div>
+              {quickLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={(e) => scrollToSection(e, link.href)}
+                  className="text-sm font-medium text-gray-700 hover:text-primary-800 transition-colors px-3 py-2"
+                >
+                  {link.label}
+                </a>
+              ))}
             </div>
 
             {/* ── Acciones derecha ── */}
             <div className="flex items-center gap-3">
+              {/* SearchBar (Desktop) */}
+              <div className="hidden lg:block">
+                <SearchBar />
+              </div>
+
               {/* Cart Button - Desktop */}
               <div className="hidden lg:block">
                 <CartButton onClick={() => setIsCartOpen(true)} />
@@ -179,7 +254,7 @@ export default function Navbar() {
               {/* Hamburger */}
               <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="lg:hidden p-2 rounded-xl transition-all duration-200 text-white hover:bg-white/10"
+                className="lg:hidden p-2 rounded-xl transition-all duration-200 text-gray-800 hover:bg-gray-100"
                 aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
               >
                 <AnimatePresence mode="wait" initial={false}>
@@ -210,52 +285,82 @@ export default function Navbar() {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="lg:hidden bg-white border-t border-secondary-100 overflow-hidden"
+              className="lg:hidden bg-white border-t border-gray-100 overflow-hidden"
             >
               <div className="px-6 py-5 space-y-1">
-                {navLinks.map((link, i) => {
-                  const isActive = activeSection === link.href;
-                  return (
-                    <motion.div
-                      key={link.href}
-                      initial={{ opacity: 0, x: -16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        delay: i * 0.05,
-                        duration: 0.25,
-                        ease: "easeOut" as const,
-                      }}
+                {/* Categories */}
+                {categories.map((category, i) => (
+                  <motion.div
+                    key={category.name}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      delay: i * 0.05,
+                      duration: 0.25,
+                      ease: "easeOut" as const,
+                    }}
+                  >
+                    <a
+                      href={category.href}
+                      onClick={(e) => scrollToSection(e, category.href)}
+                      className="flex items-center justify-between py-3 px-4 rounded-xl text-base font-semibold text-gray-800 hover:text-primary-800 hover:bg-gray-50 transition-all duration-200"
                     >
-                      <a
-                        href={link.href}
-                        onClick={(e) => scrollToSection(e, link.href)}
-                        className={`
-                          flex items-center gap-3 py-3 px-4 rounded-xl text-base font-medium
-                          transition-all duration-200
-                          ${
-                            isActive
-                              ? "text-primary-600 bg-primary-50"
-                              : "text-secondary-600 hover:text-primary-600 hover:bg-secondary-50"
-                          }
-                        `}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            isActive ? "bg-primary-500" : "bg-secondary-300"
-                          }`}
-                        />
-                        {link.label}
-                      </a>
-                    </motion.div>
-                  );
-                })}
+                      <span>{category.name}</span>
+                      {(category.subcategories || category.featured) && (
+                        <ChevronDown className="w-4 h-4 opacity-60" />
+                      )}
+                    </a>
+                    
+                    {/* Subcategories mobile */}
+                    {category.subcategories && (
+                      <div className="ml-4 mt-1 space-y-1">
+                        {category.subcategories.map((sub) => (
+                          <a
+                            key={sub.name}
+                            href={sub.href}
+                            onClick={(e) => scrollToSection(e, sub.href)}
+                            className="block py-2 px-4 text-sm text-gray-600 hover:text-primary-800 transition-colors"
+                          >
+                            {sub.name}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+
+                {/* Divider */}
+                <div className="h-px bg-gray-200 my-4"></div>
+
+                {/* Quick Links */}
+                {quickLinks.map((link, i) => (
+                  <motion.div
+                    key={link.href}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      delay: (categories.length + i) * 0.05,
+                      duration: 0.25,
+                      ease: "easeOut" as const,
+                    }}
+                  >
+                    <a
+                      href={link.href}
+                      onClick={(e) => scrollToSection(e, link.href)}
+                      className="flex items-center gap-3 py-3 px-4 rounded-xl text-base font-medium text-gray-700 hover:text-primary-800 hover:bg-gray-50 transition-all duration-200"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      {link.label}
+                    </a>
+                  </motion.div>
+                ))}
 
                 {/* Cart Button mobile */}
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
-                    delay: navLinks.length * 0.05 + 0.05,
+                    delay: (categories.length + quickLinks.length) * 0.05 + 0.05,
                     duration: 0.25,
                   }}
                   className="pt-3"
@@ -265,7 +370,7 @@ export default function Navbar() {
                       setIsCartOpen(true);
                       setIsOpen(false);
                     }}
-                    className="flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-white w-full py-3.5 rounded-xl text-sm font-semibold transition-all shadow-lg"
+                    className="flex items-center justify-center gap-2 bg-primary-800 hover:bg-primary-900 text-white w-full py-3.5 rounded-xl text-sm font-semibold transition-all shadow-lg"
                   >
                     <MessageCircle className="w-4 h-4" />
                     Ver Carrito
@@ -277,7 +382,7 @@ export default function Navbar() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
-                    delay: navLinks.length * 0.05 + 0.1,
+                    delay: (categories.length + quickLinks.length) * 0.05 + 0.1,
                     duration: 0.25,
                   }}
                 >
