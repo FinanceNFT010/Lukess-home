@@ -10,6 +10,7 @@ import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
 import { FilterSidebar, type Filters } from '@/components/catalogo/FilterSidebar'
+import { ProductBadges } from '@/components/catalogo/ProductBadges'
 
 interface CatalogoClientProps {
   initialProducts: Product[]
@@ -560,35 +561,13 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         loading="lazy"
                       />
 
-                      {/* Badges superiores */}
-                      <div className="absolute top-3 left-3 flex flex-col gap-2">
-                        {/* Badge NUEVO */}
-                        {product.is_new && (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-accent-400 text-white flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            Nuevo
-                          </span>
-                        )}
-                        
-                        {/* Badge DESCUENTO */}
-                        {product.discount_percentage && (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-green-600 text-white flex items-center gap-1">
-                            <Percent className="w-3 h-3" />
-                            -{product.discount_percentage}%
-                          </span>
-                        )}
-                        
-                        {/* Badge de Stock */}
-                        {isOutOfStock ? (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-red-600 text-white">
-                            Sin Stock
-                          </span>
-                        ) : stock < 5 ? (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-amber-500 text-white">
-                            Últimas {stock}
-                          </span>
-                        ) : null}
-                      </div>
+                      {/* Badges promocionales */}
+                      <ProductBadges
+                        isNew={product.is_new}
+                        discount={product.discount_percentage || undefined}
+                        lowStock={isOutOfStock ? 0 : stock}
+                        isBestSeller={product.is_best_seller}
+                      />
 
                       {/* Hover overlay */}
                       <div className="absolute inset-0 bg-secondary-900/0 group-hover:bg-secondary-900/40 transition-all duration-300 flex items-center justify-center gap-2 p-4">
