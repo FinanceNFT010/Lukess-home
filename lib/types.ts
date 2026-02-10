@@ -11,6 +11,8 @@ export interface Product {
   image_url: string | null
   images?: string[] | null  // Array de URLs de imágenes para galería
   is_active: boolean
+  is_new?: boolean  // Badge "NUEVO"
+  discount_percentage?: number | null  // Descuento (20-30%)
   category_id: string | null
   created_at: string
   categories?: {

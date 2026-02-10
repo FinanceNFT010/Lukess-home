@@ -1,7 +1,7 @@
 'use client'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import Container from '@/components/ui/Container'
-import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check } from 'lucide-react'
+import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check, Sparkles, Percent } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import Image from 'next/image'
@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
+import { useSearchParams } from 'next/navigation'
 
 interface CatalogoClientProps {
   initialProducts: Product[]
@@ -66,18 +67,45 @@ const showAddedToast = (productName: string) => {
 }
 
 export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
+  const searchParams = useSearchParams()
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
   const [selectedBrand, setSelectedBrand] = useState<string>('Todas')
   const [selectedColor, setSelectedColor] = useState<string>('Todos')
   const [showFilters, setShowFilters] = useState(false)
   const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('all')
-  const [displayLimit, setDisplayLimit] = useState(12) // Cargar solo 12 productos inicialmente
+  const [showNew, setShowNew] = useState(false)
+  const [showDiscount, setShowDiscount] = useState(false)
+  const [displayLimit, setDisplayLimit] = useState(20) // Mostrar 20 productos inicialmente
   const { addToCart } = useCart()
   const { ref, inView } = useInView({ 
     triggerOnce: true, 
     threshold: 0.05,
     rootMargin: '50px'
   })
+
+  // Detectar filtros desde URL (navbar)
+  useEffect(() => {
+    const filter = searchParams.get('filter')
+    const subcategory = searchParams.get('subcategory')
+    
+    if (filter === 'nuevo') {
+      setShowNew(true)
+      setSelectedCategory('Todos')
+    } else if (filter === 'descuento') {
+      setShowDiscount(true)
+      setSelectedCategory('Todos')
+    } else if (filter === 'camisas') {
+      setSelectedCategory('Camisas')
+      if (subcategory) setSelectedBrand(subcategory)
+    } else if (filter === 'pantalones') {
+      setSelectedCategory('Pantalones')
+      if (subcategory) setSelectedBrand(subcategory)
+    } else if (filter === 'blazers') {
+      setSelectedCategory('Blazers')
+    } else if (filter === 'accesorios') {
+      setSelectedCategory('Accesorios')
+    }
+  }, [searchParams])
 
   // Extraer categorías únicas
   const categories = useMemo(() => {
@@ -116,6 +144,12 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   // Filtrar productos con todos los filtros
   const filteredProducts = useMemo(() => {
     return initialProducts.filter(p => {
+      // Filtro por "NUEVO"
+      if (showNew && !p.is_new) return false
+      
+      // Filtro por "DESCUENTO"
+      if (showDiscount && !p.discount_percentage) return false
+      
       // Filtro por categoría
       if (selectedCategory !== 'Todos' && p.categories?.name !== selectedCategory) return false
       
@@ -134,7 +168,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       
       return true
     })
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, initialProducts, getTotalStock])
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, initialProducts, getTotalStock])
 
   // Contar filtros activos
   const activeFiltersCount = useMemo(() => {
@@ -143,8 +177,10 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     if (selectedBrand !== 'Todas') count++
     if (selectedColor !== 'Todos') count++
     if (stockFilter !== 'all') count++
+    if (showNew) count++
+    if (showDiscount) count++
     return count
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter])
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount])
 
   // Limpiar todos los filtros
   const clearAllFilters = () => {
@@ -152,6 +188,8 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     setSelectedBrand('Todas')
     setSelectedColor('Todos')
     setStockFilter('all')
+    setShowNew(false)
+    setShowDiscount(false)
   }
 
   const handleAddToCart = (product: Product) => {
@@ -219,12 +257,59 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             variants={headingVariants}
             className="mb-8 md:mb-12"
           >
+            {/* Filtros rápidos: NUEVO y DESCUENTO */}
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-4">
+              <button
+                onClick={() => {
+                  setShowNew(!showNew)
+                  setShowDiscount(false)
+                  setSelectedCategory('Todos')
+                }}
+                className={`
+                  px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
+                  transition-all duration-300 flex items-center gap-2
+                  ${
+                    showNew
+                      ? 'bg-accent-400 text-white shadow-lg shadow-accent-400/25 scale-105'
+                      : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
+                  }
+                `}
+              >
+                <Sparkles className="w-4 h-4" />
+                Nuevo
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowDiscount(!showDiscount)
+                  setShowNew(false)
+                  setSelectedCategory('Todos')
+                }}
+                className={`
+                  px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
+                  transition-all duration-300 flex items-center gap-2
+                  ${
+                    showDiscount
+                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/25 scale-105'
+                      : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
+                  }
+                `}
+              >
+                <Percent className="w-4 h-4" />
+                Descuentos
+              </button>
+            </div>
+
             {/* Categorías principales */}
             <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-4">
               {categories.map((cat) => (
                 <button
                   key={cat}
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => {
+                    setSelectedCategory(cat)
+                    setShowNew(false)
+                    setShowDiscount(false)
+                  }}
                   className={`
                     px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
                     transition-all duration-300
@@ -406,19 +491,37 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                         className="object-contain transition-transform duration-300 group-hover:scale-105"
                         loading="lazy"
-                        quality={75}
                       />
 
-                      {/* Badge de Stock */}
-                      {isOutOfStock ? (
-                        <span className="absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-red-600 text-white">
-                          Sin Stock
-                        </span>
-                      ) : stock < 5 ? (
-                        <span className="absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-amber-500 text-white">
-                          Últimas {stock}
-                        </span>
-                      ) : null}
+                      {/* Badges superiores */}
+                      <div className="absolute top-3 left-3 flex flex-col gap-2">
+                        {/* Badge NUEVO */}
+                        {product.is_new && (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-accent-400 text-white flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            Nuevo
+                          </span>
+                        )}
+                        
+                        {/* Badge DESCUENTO */}
+                        {product.discount_percentage && (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-green-600 text-white flex items-center gap-1">
+                            <Percent className="w-3 h-3" />
+                            -{product.discount_percentage}%
+                          </span>
+                        )}
+                        
+                        {/* Badge de Stock */}
+                        {isOutOfStock ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-red-600 text-white">
+                            Sin Stock
+                          </span>
+                        ) : stock < 5 ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-amber-500 text-white">
+                            Últimas {stock}
+                          </span>
+                        ) : null}
+                      </div>
 
                       {/* Hover overlay */}
                       <div className="absolute inset-0 bg-secondary-900/0 group-hover:bg-secondary-900/40 transition-all duration-300 flex items-center justify-center gap-2 p-4">
@@ -522,12 +625,30 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                       {/* Precio + Stock */}
                       <div className="flex items-end justify-between pt-2 border-t border-secondary-100">
                         <div>
-                          <span className="text-2xl font-black text-primary-500">
-                            {product.price}
-                          </span>
-                          <span className="text-xs text-secondary-400 ml-1 font-medium">
-                            Bs
-                          </span>
+                          {product.discount_percentage ? (
+                            <div className="flex flex-col">
+                              <span className="text-sm text-secondary-400 line-through">
+                                Bs {product.price.toFixed(2)}
+                              </span>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-2xl font-black text-green-600">
+                                  {(product.price * (1 - product.discount_percentage / 100)).toFixed(2)}
+                                </span>
+                                <span className="text-xs text-secondary-400 font-medium">
+                                  Bs
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-2xl font-black text-primary-500">
+                                {product.price.toFixed(2)}
+                              </span>
+                              <span className="text-xs text-secondary-400 ml-1 font-medium">
+                                Bs
+                              </span>
+                            </>
+                          )}
                         </div>
                         <div className="text-right">
                           <span className={`text-xs font-semibold ${

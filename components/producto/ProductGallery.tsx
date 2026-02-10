@@ -26,7 +26,6 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
           fill
           className="object-cover"
           priority={currentIndex === 0}
-          quality={85}
           sizes="(max-width: 768px) 100vw, 50vw"
         />
         
@@ -92,7 +91,6 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                 fill
                 className="object-cover"
                 loading="lazy"
-                quality={60}
                 sizes="100px"
               />
             </button>

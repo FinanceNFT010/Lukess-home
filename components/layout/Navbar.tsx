@@ -18,43 +18,43 @@ const WHATSAPP_URL =
 const categories = [
   {
     name: 'NUEVO',
-    href: '#catalogo',
+    href: '#catalogo?filter=nuevo',
     featured: [
-      { name: 'Recién llegados', href: '#catalogo' },
-      { name: 'Ofertas de semana', href: '#catalogo' },
+      { name: 'Recién llegados', href: '#catalogo?filter=nuevo' },
+      { name: 'Ofertas de semana', href: '#catalogo?filter=descuento' },
     ]
   },
   {
     name: 'CAMISAS',
-    href: '#catalogo',
+    href: '#catalogo?filter=camisas',
     subcategories: [
-      { name: 'Columbia', href: '#catalogo' },
-      { name: 'Manga larga', href: '#catalogo' },
-      { name: 'Manga corta', href: '#catalogo' },
-      { name: 'Elegantes', href: '#catalogo' },
+      { name: 'Columbia', href: '#catalogo?filter=camisas&subcategory=Columbia' },
+      { name: 'Manga larga', href: '#catalogo?filter=camisas&subcategory=Manga larga' },
+      { name: 'Manga corta', href: '#catalogo?filter=camisas&subcategory=Manga corta' },
+      { name: 'Elegantes', href: '#catalogo?filter=camisas&subcategory=Elegantes' },
     ]
   },
   {
     name: 'PANTALONES',
-    href: '#catalogo',
+    href: '#catalogo?filter=pantalones',
     subcategories: [
-      { name: 'Oversize', href: '#catalogo' },
-      { name: 'Jeans', href: '#catalogo' },
-      { name: 'Elegantes', href: '#catalogo' },
+      { name: 'Oversize', href: '#catalogo?filter=pantalones&subcategory=Oversize' },
+      { name: 'Jeans', href: '#catalogo?filter=pantalones&subcategory=Jeans' },
+      { name: 'Elegantes', href: '#catalogo?filter=pantalones&subcategory=Elegantes' },
     ]
   },
   {
     name: 'BLAZERS',
-    href: '#catalogo',
+    href: '#catalogo?filter=blazers',
   },
   {
     name: 'ACCESORIOS',
-    href: '#catalogo',
+    href: '#catalogo?filter=accesorios',
     subcategories: [
-      { name: 'Sombreros', href: '#catalogo' },
-      { name: 'Gorras', href: '#catalogo' },
-      { name: 'Cinturones', href: '#catalogo' },
-      { name: 'Billeteras', href: '#catalogo' },
+      { name: 'Sombreros', href: '#catalogo?filter=accesorios&subcategory=Sombreros' },
+      { name: 'Gorras', href: '#catalogo?filter=accesorios&subcategory=Gorras' },
+      { name: 'Cinturones', href: '#catalogo?filter=accesorios&subcategory=Cinturones' },
+      { name: 'Billeteras', href: '#catalogo?filter=accesorios&subcategory=Billeteras' },
     ]
   },
 ];
