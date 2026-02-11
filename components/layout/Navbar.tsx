@@ -10,6 +10,8 @@ import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CheckoutModal } from "@/components/cart/CheckoutModal";
 import { WishlistIcon } from "@/components/wishlist/WishlistIcon";
+import { useCart } from "@/lib/context/CartContext";
+import { useWishlist } from "@/lib/context/WishlistContext";
 
 const WHATSAPP_URL =
   "https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20me%20interesa%20conocer%20sus%20productos";
@@ -72,6 +74,10 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const pathname = usePathname();
   const router = useRouter();
+  const { items } = useCart();
+  const { wishlistCount } = useWishlist();
+  
+  const cartItemCount = items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -282,7 +288,7 @@ export default function Navbar() {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="lg:hidden bg-white border-t border-gray-100 overflow-hidden"
+              className="lg:hidden bg-white border-t border-gray-100 max-h-[calc(100vh-80px)] overflow-y-auto"
             >
               <div className="px-6 py-5 space-y-1">
                 {/* Mobile search - PRIMERO */}
@@ -436,6 +442,20 @@ export default function Navbar() {
           />
         )}
       </AnimatePresence>
+
+      {/* Botón carrito flotante SOLO MÓVIL */}
+      <button
+        onClick={() => setIsCartOpen(true)}
+        className="lg:hidden fixed bottom-6 right-6 z-40 w-16 h-16 bg-primary-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-primary-700 transition-all active:scale-95"
+        aria-label={`Ver carrito (${cartItemCount} productos)`}
+      >
+        <ShoppingCart className="w-7 h-7" />
+        {cartItemCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg">
+            {cartItemCount > 9 ? '9+' : cartItemCount}
+          </span>
+        )}
+      </button>
 
       {/* Cart Drawer */}
       <CartDrawer 

@@ -11,9 +11,9 @@ interface ProductBadgesProps {
 export function ProductBadges({ isNew, discount, lowStock, isBestSeller, collection }: ProductBadgesProps) {
   return (
     <>
-      {/* Badge NUEVO - Círculo llamativo en la esquina superior IZQUIERDA */}
+      {/* Badge NUEVO - Círculo llamativo en el CENTRO INFERIOR */}
       {isNew && (
-        <div className="absolute -top-2 -left-2 z-20">
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20">
           <div className="relative">
             <div className="w-16 h-16 bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-xl animate-pulse">
               <div className="text-center">
