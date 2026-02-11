@@ -78,10 +78,10 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     brands: [],
     colors: [],
     sizes: [],
-    inStock: null,
+    inStock: true, // Por defecto mostrar solo en stock
     category: null,
   })
-  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('all')
+  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('inStock') // Por defecto en stock
   const [showNew, setShowNew] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
   const [displayLimit, setDisplayLimit] = useState(20) // Mostrar 20 productos inicialmente
@@ -91,6 +91,19 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     threshold: 0.05,
     rootMargin: '50px'
   })
+
+  // Función para verificar si un producto es nuevo (últimos 7 días)
+  const isProductNew = useCallback((product: Product): boolean => {
+    const createdDate = new Date(product.created_at)
+    const now = new Date()
+    const daysDiff = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
+    return daysDiff <= 7
+  }, [])
+
+  // Función para verificar si tiene descuento
+  const hasDiscount = useCallback((product: Product): boolean => {
+    return !!(product.discount_percentage && product.discount_percentage > 0)
+  }, [])
 
   // Detectar filtros desde URL hash (navbar)
   useEffect(() => {
@@ -143,16 +156,17 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     return ['Todos', ...Array.from(cats).sort()]
   }, [initialProducts])
 
-  // Extraer marcas únicas
+  // Extraer marcas únicas (máximo 8)
   const brands = useMemo(() => {
     const brandSet = new Set<string>()
     initialProducts.forEach(p => {
       if (p.brand) brandSet.add(p.brand)
     })
-    return ['Todas', ...Array.from(brandSet).sort()]
+    const sortedBrands = Array.from(brandSet).sort()
+    return ['Todas', ...sortedBrands.slice(0, 8)]
   }, [initialProducts])
 
-  // Extraer colores únicos
+  // Extraer colores únicos (máximo 8)
   const colors = useMemo(() => {
     const colorSet = new Set<string>()
     initialProducts.forEach(p => {
@@ -160,7 +174,8 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
         p.colors.forEach(c => colorSet.add(c))
       }
     })
-    return ['Todos', ...Array.from(colorSet).sort()]
+    const sortedColors = Array.from(colorSet).sort()
+    return ['Todos', ...sortedColors.slice(0, 8)]
   }, [initialProducts])
 
   // Calcular stock total
@@ -171,11 +186,11 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   // Filtrar productos con todos los filtros
   const filteredProducts = useMemo(() => {
     return initialProducts.filter(p => {
-      // Filtro por "NUEVO"
-      if (showNew && !p.is_new) return false
+      // Filtro por "NUEVO" (últimos 7 días)
+      if (showNew && !isProductNew(p)) return false
       
       // Filtro por "DESCUENTO"
-      if (showDiscount && !p.discount_percentage) return false
+      if (showDiscount && !hasDiscount(p)) return false
       
       // Filtros del sidebar - Precio
       if (p.price < sidebarFilters.priceRange[0] || p.price > sidebarFilters.priceRange[1]) return false
@@ -213,7 +228,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       
       return true
     })
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, sidebarFilters, initialProducts, getTotalStock])
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount])
 
   // Contar filtros activos
   const activeFiltersCount = useMemo(() => {
@@ -548,10 +563,12 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   <motion.div
                     key={product.id}
                     variants={cardVariants}
-                    className="group bg-white rounded-2xl border border-secondary-100 hover:border-primary-300 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 md:hover:-translate-y-1"
+                    className="group bg-white rounded-2xl border border-secondary-100 hover:border-primary-300 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 md:hover:-translate-y-1 cursor-pointer"
                   >
-                    {/* Imagen */}
-                    <div className="relative aspect-[4/5] overflow-hidden bg-white p-4">
+                    {/* Wrapper clickeable para toda la card */}
+                    <Link href={`/producto/${product.id}`} className="block">
+                      {/* Imagen */}
+                      <div className="relative aspect-[4/5] overflow-hidden bg-white p-4">
                       <Image
                         src={product.image_url || '/placeholder.png'}
                         alt={product.name}
@@ -570,22 +587,25 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                       />
 
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-secondary-900/0 group-hover:bg-secondary-900/40 transition-all duration-300 flex items-center justify-center gap-2 p-4">
-                        <button
-                          onClick={() => handleAddToCart(product)}
-                          disabled={isOutOfStock}
-                          className={`opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold shadow-lg ${
+                      <div className="absolute inset-0 bg-secondary-900/0 group-hover:bg-secondary-900/40 transition-all duration-300 flex items-center justify-center gap-2 p-4 pointer-events-none">
+                        <Link
+                          href={`/producto/${product.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold shadow-lg pointer-events-auto ${
                             isOutOfStock
                               ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                              : 'bg-primary-500 hover:bg-primary-600 text-white'
+                              : 'bg-primary-800 hover:bg-primary-900 text-white'
                           }`}
                         >
                           <ShoppingCart className="w-4 h-4" />
-                          {isOutOfStock ? 'Sin Stock' : 'Agregar'}
-                        </button>
+                          {isOutOfStock ? 'Sin Stock' : 'Ver detalles'}
+                        </Link>
                         <button
-                          onClick={() => handleWhatsAppConsult(product)}
-                          className="opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 inline-flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white px-4 py-2.5 rounded-full text-sm font-semibold shadow-lg"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleWhatsAppConsult(product)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 inline-flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white px-4 py-2.5 rounded-full text-sm font-semibold shadow-lg pointer-events-auto"
                         >
                           <MessageCircle className="w-4 h-4" />
                           Consultar
@@ -610,12 +630,10 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         )}
                       </div>
 
-                      {/* Nombre - clickeable para ir al detalle */}
-                      <Link href={`/producto/${product.id}`}>
-                        <h3 className="text-sm sm:text-base font-bold text-secondary-800 mb-1.5 leading-snug line-clamp-2 min-h-[2.5rem] hover:text-primary-600 transition-colors cursor-pointer">
-                          {product.name}
-                        </h3>
-                      </Link>
+                      {/* Nombre */}
+                      <h3 className="text-sm sm:text-base font-bold text-secondary-800 mb-1.5 leading-snug line-clamp-2 min-h-[2.5rem] group-hover:text-primary-600 transition-colors">
+                        {product.name}
+                      </h3>
 
                       {/* Descripción */}
                       {product.description && (
@@ -697,31 +715,39 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                           )}
                         </div>
                         <div className="text-right">
-                          <span className={`text-xs font-semibold ${
-                            stock === 0 ? 'text-red-500' : stock < 5 ? 'text-amber-500' : 'text-green-500'
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                            stock === 0 
+                              ? 'bg-gray-100 text-gray-600' 
+                              : stock < 5 
+                                ? 'bg-amber-100 text-amber-700' 
+                                : 'bg-green-100 text-green-700'
                           }`}>
-                            {stock === 0 ? 'Agotado' : stock < 5 ? `¡Solo ${stock}!` : `${stock} disponibles`}
+                            {stock === 0 ? 'Sin stock' : stock < 5 ? 'Pocas unidades' : 'En stock'}
                           </span>
                         </div>
                       </div>
                     </div>
+                    </Link>
 
                     {/* Botones móvil */}
                     <div className="px-4 pb-4 sm:px-5 sm:pb-5 lg:hidden flex gap-2">
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        disabled={isOutOfStock}
+                      <Link
+                        href={`/producto/${product.id}`}
+                        onClick={(e) => e.stopPropagation()}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ${
                           isOutOfStock
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-primary-500 hover:bg-primary-600 text-white'
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none'
+                            : 'bg-primary-800 hover:bg-primary-900 text-white'
                         }`}
                       >
                         <ShoppingCart className="w-4 h-4" />
-                        {isOutOfStock ? 'Sin Stock' : 'Agregar'}
-                      </button>
+                        {isOutOfStock ? 'Sin Stock' : 'Ver detalles'}
+                      </Link>
                       <button
-                        onClick={() => handleWhatsAppConsult(product)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleWhatsAppConsult(product)
+                        }}
                         className="px-4 py-2.5 bg-whatsapp hover:bg-whatsapp-dark text-white rounded-full transition-all duration-300"
                       >
                         <MessageCircle className="w-4 h-4" />
