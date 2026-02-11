@@ -45,7 +45,7 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
     }
 
     if (quantity > stock) {
-      toast.error(`Solo hay ${stock} unidades disponibles`)
+      toast.error('No hay suficiente stock disponible')
       return
     }
 
@@ -64,8 +64,6 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
     )
     window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
   }
-
-  const margin = product.cost > 0 ? ((product.price - product.cost) / product.cost * 100).toFixed(1) : '0'
 
   return (
     <>
@@ -131,26 +129,24 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
 
               {/* Price */}
               <div className="flex items-baseline gap-4">
-                <span className="text-5xl font-bold text-primary-600">
-                  Bs {product.price.toFixed(2)}
-                </span>
-                {product.cost > 0 && (
-                  <span className="text-lg text-gray-500">
-                    ({margin}% ganancia)
-                  </span>
-                )}
-              </div>
+              <span className="text-5xl font-bold text-primary-600">
+                Bs {product.price.toFixed(2)}
+              </span>
+            </div>
 
-              {/* Stock */}
-              <div className="flex items-center gap-2 text-lg">
-                <Package className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-700">
-                  Stock disponible: 
-                  <span className={`font-bold ml-2 ${stock < 5 ? 'text-red-600' : 'text-green-600'}`}>
-                    {stock} unidades
-                  </span>
-                </span>
-              </div>
+            {/* Stock */}
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-gray-600" />
+              <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+                stock === 0 
+                  ? 'bg-gray-100 text-gray-600' 
+                  : stock < 10 
+                    ? 'bg-amber-100 text-amber-700' 
+                    : 'bg-green-100 text-green-700'
+              }`}>
+                {stock === 0 ? 'Sin stock' : stock < 10 ? 'Pocas unidades' : 'En stock'}
+              </span>
+            </div>
 
               {/* Description */}
               {product.description && (

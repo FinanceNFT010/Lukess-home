@@ -24,9 +24,9 @@ export function ProductBadges({ isNew, discount, lowStock, isBestSeller }: Produ
         </span>
       )}
       
-      {lowStock && lowStock > 0 && lowStock < 5 && (
+      {lowStock && lowStock > 0 && lowStock < 10 && (
         <span className="bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse">
-          ¡Últimas {lowStock}!
+          ¡Pocas unidades!
         </span>
       )}
       

@@ -84,6 +84,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('inStock') // Por defecto en stock
   const [showNew, setShowNew] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [displayLimit, setDisplayLimit] = useState(20) // Mostrar 20 productos inicialmente
   const { addToCart } = useCart()
   const { ref, inView } = useInView({ 
@@ -91,6 +92,17 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     threshold: 0.05,
     rootMargin: '50px'
   })
+
+  // Detectar búsqueda desde URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const busqueda = params.get('busqueda')
+      if (busqueda) {
+        setSearchQuery(busqueda)
+      }
+    }
+  }, [])
 
   // Función para verificar si un producto es nuevo (últimos 7 días)
   const isProductNew = useCallback((product: Product): boolean => {
@@ -166,16 +178,26 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     return ['Todas', ...sortedBrands.slice(0, 8)]
   }, [initialProducts])
 
-  // Extraer colores únicos (máximo 8)
+  // Colores estándar (9 colores típicos)
   const colors = useMemo(() => {
-    const colorSet = new Set<string>()
+    const standardColors = ['Blanco', 'Negro', 'Gris', 'Azul', 'Rojo', 'Verde', 'Beige', 'Café', 'Amarillo']
+    const availableColors = new Set<string>()
+    
     initialProducts.forEach(p => {
       if (p.colors && Array.isArray(p.colors)) {
-        p.colors.forEach(c => colorSet.add(c))
+        p.colors.forEach(c => {
+          // Normalizar y matchear con colores estándar
+          const normalized = c.toLowerCase()
+          standardColors.forEach(std => {
+            if (normalized.includes(std.toLowerCase())) {
+              availableColors.add(std)
+            }
+          })
+        })
       }
     })
-    const sortedColors = Array.from(colorSet).sort()
-    return ['Todos', ...sortedColors.slice(0, 8)]
+    
+    return ['Todos', ...standardColors.filter(c => availableColors.has(c))]
   }, [initialProducts])
 
   // Calcular stock total
@@ -186,6 +208,19 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   // Filtrar productos con todos los filtros
   const filteredProducts = useMemo(() => {
     return initialProducts.filter(p => {
+      // Filtro de búsqueda
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        const matchesName = p.name.toLowerCase().includes(query)
+        const matchesBrand = p.brand?.toLowerCase().includes(query)
+        const matchesCategory = p.categories?.name.toLowerCase().includes(query)
+        const matchesDescription = p.description?.toLowerCase().includes(query)
+        
+        if (!matchesName && !matchesBrand && !matchesCategory && !matchesDescription) {
+          return false
+        }
+      }
+      
       // Filtro por "NUEVO" (últimos 7 días)
       if (showNew && !isProductNew(p)) return false
       
@@ -228,7 +263,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       
       return true
     })
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount])
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, searchQuery, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount])
 
   // Contar filtros activos
   const activeFiltersCount = useMemo(() => {
@@ -586,30 +621,11 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         isBestSeller={product.is_best_seller}
                       />
 
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-secondary-900/0 group-hover:bg-secondary-900/40 transition-all duration-300 flex items-center justify-center gap-2 p-4 pointer-events-none">
-                        <Link
-                          href={`/producto/${product.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className={`opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold shadow-lg pointer-events-auto ${
-                            isOutOfStock
-                              ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                              : 'bg-primary-800 hover:bg-primary-900 text-white'
-                          }`}
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                          {isOutOfStock ? 'Sin Stock' : 'Ver detalles'}
-                        </Link>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleWhatsAppConsult(product)
-                          }}
-                          className="opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 inline-flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white px-4 py-2.5 rounded-full text-sm font-semibold shadow-lg pointer-events-auto"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          Consultar
-                        </button>
+                      {/* Efecto hover sutil - sin overlay oscuro */}
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
+                        <div className="bg-primary-800 text-white px-6 py-2 rounded-full text-sm font-bold shadow-xl animate-pulse">
+                          Click para ver
+                        </div>
                       </div>
                     </div>
 
@@ -690,16 +706,13 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                       <div className="flex items-end justify-between pt-2 border-t border-secondary-100">
                         <div>
                           {product.discount_percentage ? (
-                            <div className="flex flex-col">
-                              <span className="text-sm text-secondary-400 line-through">
-                                Bs {product.price.toFixed(2)}
-                              </span>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-green-600">
-                                  {(product.price * (1 - product.discount_percentage / 100)).toFixed(2)}
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-black text-red-600">
+                                  Bs {(product.price * (1 - product.discount_percentage / 100)).toFixed(2)}
                                 </span>
-                                <span className="text-xs text-secondary-400 font-medium">
-                                  Bs
+                                <span className="text-sm text-gray-400 line-through decoration-red-500 decoration-2">
+                                  Bs {product.price.toFixed(2)}
                                 </span>
                               </div>
                             </div>
@@ -718,11 +731,11 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                           <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                             stock === 0 
                               ? 'bg-gray-100 text-gray-600' 
-                              : stock < 5 
+                              : stock < 10 
                                 ? 'bg-amber-100 text-amber-700' 
                                 : 'bg-green-100 text-green-700'
                           }`}>
-                            {stock === 0 ? 'Sin stock' : stock < 5 ? 'Pocas unidades' : 'En stock'}
+                            {stock === 0 ? 'Sin stock' : stock < 10 ? 'Pocas unidades' : 'En stock'}
                           </span>
                         </div>
                       </div>
