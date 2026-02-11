@@ -80,12 +80,14 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     sizes: [],
     inStock: true, // Por defecto mostrar solo en stock
     category: null,
+    hasDiscount: null,
   })
   const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('inStock') // Por defecto en stock
   const [showNew, setShowNew] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [displayLimit, setDisplayLimit] = useState(20) // Mostrar 20 productos inicialmente
+  const [sortOrder, setSortOrder] = useState<'recent' | 'price-asc' | 'price-desc'>('recent')
   const { addToCart } = useCart()
   const { ref, inView } = useInView({ 
     triggerOnce: true, 
@@ -114,8 +116,25 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
 
   // Función para verificar si tiene descuento
   const hasDiscount = useCallback((product: Product): boolean => {
-    return !!(product.discount_percentage && product.discount_percentage > 0)
+    return !!(product.discount && product.discount > 0) || !!(product.discount_percentage && product.discount_percentage > 0)
   }, [])
+
+  // Función para obtener el porcentaje de descuento
+  const getDiscount = useCallback((product: Product): number => {
+    return product.discount || product.discount_percentage || 0
+  }, [])
+
+  // Función para calcular precio con descuento
+  const getPriceWithDiscount = useCallback((product: Product): number => {
+    const discount = getDiscount(product)
+    return product.price * (1 - discount / 100)
+  }, [getDiscount])
+
+  // Función para calcular ahorro
+  const getSavings = useCallback((product: Product): number => {
+    const discount = getDiscount(product)
+    return product.price * (discount / 100)
+  }, [getDiscount])
 
   // Detectar filtros desde URL hash (navbar)
   useEffect(() => {
@@ -205,9 +224,9 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     return product.inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0
   }, [])
 
-  // Filtrar productos con todos los filtros
+  // Filtrar y ordenar productos con todos los filtros
   const filteredProducts = useMemo(() => {
-    return initialProducts.filter(p => {
+    let filtered = initialProducts.filter(p => {
       // Filtro de búsqueda
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
@@ -243,6 +262,9 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       const stock = getTotalStock(p)
       if (sidebarFilters.inStock && stock === 0) return false
       
+      // Filtros del sidebar - Descuento
+      if (sidebarFilters.hasDiscount && !hasDiscount(p)) return false
+      
       // Filtros del sidebar - Categoría
       if (sidebarFilters.category && p.categories?.name !== sidebarFilters.category) return false
       
@@ -263,7 +285,22 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       
       return true
     })
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, searchQuery, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount])
+
+    // Ordenar productos
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOrder) {
+        case 'price-asc':
+          return getPriceWithDiscount(a) - getPriceWithDiscount(b)
+        case 'price-desc':
+          return getPriceWithDiscount(b) - getPriceWithDiscount(a)
+        case 'recent':
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+    })
+
+    return sorted
+  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, searchQuery, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount, sortOrder, getPriceWithDiscount])
 
   // Contar filtros activos
   const activeFiltersCount = useMemo(() => {
@@ -285,6 +322,16 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     setStockFilter('all')
     setShowNew(false)
     setShowDiscount(false)
+    setSidebarFilters({
+      priceRange: [0, 1000],
+      brands: [],
+      colors: [],
+      sizes: [],
+      inStock: null,
+      category: null,
+      hasDiscount: null,
+    })
+    setSearchQuery('')
   }
 
   const handleAddToCart = (product: Product) => {
@@ -421,7 +468,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             </div>
 
             {/* Botón de filtros avanzados + contador */}
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
               <button
                 onClick={() => setShowSidebar(!showSidebar)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white bg-primary-800 hover:bg-primary-900 transition-all shadow-lg"
@@ -456,10 +503,29 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   Limpiar
                 </button>
               )}
+            </div>
 
-              <span className="text-sm text-secondary-500">
-                {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}
+            {/* Contador y ordenamiento */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4">
+              <span className="text-sm font-semibold text-secondary-700">
+                {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
               </span>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="sort-order" className="text-sm text-secondary-600 font-medium">
+                  Ordenar por:
+                </label>
+                <select
+                  id="sort-order"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as 'recent' | 'price-asc' | 'price-desc')}
+                  className="px-3 py-1.5 text-sm border-2 border-secondary-200 rounded-lg focus:border-primary-500 focus:outline-none bg-white cursor-pointer"
+                >
+                  <option value="recent">Más recientes</option>
+                  <option value="price-asc">Menor precio</option>
+                  <option value="price-desc">Mayor precio</option>
+                </select>
+              </div>
             </div>
 
             {/* Panel de filtros avanzados */}
@@ -589,7 +655,32 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
 
             {/* Grid de productos */}
             <div className="flex-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6">
+              {filteredProducts.length === 0 ? (
+                /* Estado vacío */
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center justify-center py-20 px-4"
+                >
+                  <div className="w-24 h-24 bg-secondary-100 rounded-full flex items-center justify-center mb-6">
+                    <ShoppingBag className="w-12 h-12 text-secondary-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-secondary-800 mb-2">
+                    No se encontraron productos
+                  </h3>
+                  <p className="text-secondary-500 text-center mb-6 max-w-md">
+                    No hay productos que coincidan con los filtros seleccionados. Intenta ajustar tus criterios de búsqueda.
+                  </p>
+                  <button
+                    onClick={clearAllFilters}
+                    className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg"
+                  >
+                    <X className="w-4 h-4" />
+                    Limpiar todos los filtros
+                  </button>
+                </motion.div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6">
                 {filteredProducts.slice(0, displayLimit).map((product, index) => {
                 const stock = getTotalStock(product)
                 const isOutOfStock = stock === 0
@@ -616,7 +707,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                       {/* Badges promocionales */}
                       <ProductBadges
                         isNew={product.is_new}
-                        discount={product.discount_percentage || undefined}
+                        discount={getDiscount(product) || undefined}
                         lowStock={isOutOfStock ? 0 : stock}
                         isBestSeller={product.is_best_seller}
                       />
@@ -705,26 +796,23 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                       {/* Precio + Stock */}
                       <div className="flex items-end justify-between pt-2 border-t border-secondary-100">
                         <div>
-                          {product.discount_percentage ? (
-                            <div className="flex flex-col gap-1">
+                          {hasDiscount(product) ? (
+                            <div className="flex flex-col gap-0.5">
                               <div className="flex items-baseline gap-2">
                                 <span className="text-2xl font-black text-red-600">
-                                  Bs {(product.price * (1 - product.discount_percentage / 100)).toFixed(2)}
-                                </span>
-                                <span className="text-sm text-gray-400 line-through decoration-red-500 decoration-2">
-                                  Bs {product.price.toFixed(2)}
+                                  Bs {getPriceWithDiscount(product).toFixed(2)}
                                 </span>
                               </div>
+                              <span className="text-xs text-gray-400 line-through decoration-red-500 decoration-1">
+                                Bs {product.price.toFixed(2)}
+                              </span>
                             </div>
                           ) : (
-                            <>
-                              <span className="text-2xl font-black text-primary-500">
-                                {product.price.toFixed(2)}
+                            <div className="flex items-baseline">
+                              <span className="text-2xl font-black text-primary-600">
+                                Bs {product.price.toFixed(2)}
                               </span>
-                              <span className="text-xs text-secondary-400 ml-1 font-medium">
-                                Bs
-                              </span>
-                            </>
+                            </div>
                           )}
                         </div>
                         <div className="text-right">
@@ -769,10 +857,11 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   </motion.div>
                 )
               })}
-              </div>
+                </div>
+              )}
 
               {/* ── Botón Cargar Más ── */}
-              {filteredProducts.length > displayLimit && (
+              {filteredProducts.length > 0 && filteredProducts.length > displayLimit && (
                 <div className="text-center mt-8">
                   <button
                     onClick={() => setDisplayLimit(prev => prev + 12)}

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Container from '@/components/ui/Container'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
-import { ShoppingCart, MessageCircle, Package, TrendingUp, ChevronRight, Home } from 'lucide-react'
+import { ShoppingCart, MessageCircle, Package, TrendingUp, ChevronRight, Home, Percent } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
@@ -25,8 +25,28 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
     return p.inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0
   }
 
+  // Funciones para descuentos
+  const getDiscount = (p: Product): number => {
+    return p.discount || p.discount_percentage || 0
+  }
+
+  const hasDiscount = (p: Product): boolean => {
+    return getDiscount(p) > 0
+  }
+
+  const getPriceWithDiscount = (p: Product): number => {
+    const discount = getDiscount(p)
+    return p.price * (1 - discount / 100)
+  }
+
+  const getSavings = (p: Product): number => {
+    const discount = getDiscount(p)
+    return p.price * (discount / 100)
+  }
+
   const stock = getTotalStock(product)
   const isOutOfStock = stock === 0
+  const discount = getDiscount(product)
 
   const handleAddToCart = () => {
     if (isOutOfStock) {
@@ -128,11 +148,33 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
               </h1>
 
               {/* Price */}
-              <div className="flex items-baseline gap-4">
-              <span className="text-5xl font-bold text-primary-600">
-                Bs {product.price.toFixed(2)}
-              </span>
-            </div>
+              <div className="space-y-2">
+                {hasDiscount(product) ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <span className="text-5xl font-bold text-red-600">
+                        Bs {getPriceWithDiscount(product).toFixed(2)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-bold">
+                        <Percent className="w-4 h-4" />
+                        -{discount}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl text-gray-400 line-through decoration-red-500 decoration-2">
+                        Bs {product.price.toFixed(2)}
+                      </span>
+                      <span className="text-green-600 font-semibold text-lg">
+                        Ahorras: Bs {getSavings(product).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-5xl font-bold text-primary-600">
+                    Bs {product.price.toFixed(2)}
+                  </span>
+                )}
+              </div>
 
             {/* Stock */}
             <div className="flex items-center gap-2">
@@ -297,10 +339,26 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                         <h3 className="font-bold text-gray-900 mb-2 line-clamp-1">
                           {p.name}
                         </h3>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xl font-bold text-primary-600">
-                            Bs {p.price.toFixed(2)}
-                          </p>
+                        <div className="flex flex-col gap-1">
+                          {hasDiscount(p) ? (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xl font-bold text-red-600">
+                                  Bs {getPriceWithDiscount(p).toFixed(2)}
+                                </p>
+                                <span className="bg-red-600 text-white px-2 py-0.5 rounded-full text-xs font-bold">
+                                  -{getDiscount(p)}%
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-400 line-through">
+                                Bs {p.price.toFixed(2)}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xl font-bold text-primary-600">
+                              Bs {p.price.toFixed(2)}
+                            </p>
+                          )}
                           <span className="text-xs text-gray-500">
                             Stock: {relatedStock}
                           </span>

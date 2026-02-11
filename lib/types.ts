@@ -9,11 +9,13 @@ export interface Product {
   sizes: string[] | null
   colors: string[] | null
   image_url: string | null
-  images?: string[] | null  // Array de URLs de imágenes para galería
+  images: string[] | null  // Array de URLs de imágenes para galería
   is_active: boolean
   is_new?: boolean  // Badge "NUEVO"
   is_best_seller?: boolean  // Badge "MÁS VENDIDO"
-  discount_percentage?: number | null  // Descuento (20-30%)
+  discount: number | null  // Descuento en porcentaje (0-100)
+  discount_percentage?: number | null  // Alias para compatibilidad
+  is_featured: boolean | null  // Producto destacado
   category_id: string | null
   created_at: string
   categories?: {

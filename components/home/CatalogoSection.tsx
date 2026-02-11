@@ -6,6 +6,7 @@ import { MessageCircle, ShoppingBag, Tag, ShoppingCart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import Container from "@/components/ui/Container";
+import { Product } from "@/lib/types";
 import {
   products,
   categories,
@@ -73,7 +74,7 @@ export function CatalogoSection() {
 
   const handleAddToCart = (product: any) => {
     // Convertir producto del formato antiguo al nuevo
-    const productForCart = {
+    const productForCart: Product = {
       id: product.id,
       sku: product.slug,
       name: product.name,
@@ -84,7 +85,10 @@ export function CatalogoSection() {
       sizes: product.sizes,
       colors: null,
       image_url: product.images[0],
+      images: product.images,
       is_active: true,
+      discount: null,
+      is_featured: null,
       category_id: null,
       created_at: new Date().toISOString(),
       categories: { name: product.category },

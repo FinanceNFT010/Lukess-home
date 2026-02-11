@@ -58,6 +58,16 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Scroll margin para secciones con navbar fijo */
+  section[id] {
+    scroll-margin-top: 80px;
+  }
+
+  /* Scroll margin para elementos con ID (enlaces de navegación) */
+  [id] {
+    scroll-margin-top: 80px;
+  }
+
   /* Selección de texto */
   ::selection {
     @apply bg-primary-500/20 text-primary-900;

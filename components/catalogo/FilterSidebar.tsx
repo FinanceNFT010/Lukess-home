@@ -10,6 +10,7 @@ export interface Filters {
   sizes: string[]
   inStock: boolean | null
   category: string | null
+  hasDiscount?: boolean | null
 }
 
 interface FilterSidebarProps {
@@ -27,6 +28,7 @@ export function FilterSidebar({ onFilterChange, brands, colors, categories }: Fi
     sizes: [],
     inStock: null,
     category: null,
+    hasDiscount: null,
   })
   
   const [openSections, setOpenSections] = useState({
@@ -56,6 +58,7 @@ export function FilterSidebar({ onFilterChange, brands, colors, categories }: Fi
       sizes: [],
       inStock: null,
       category: null,
+      hasDiscount: null,
     }
     setFilters(emptyFilters)
     onFilterChange(emptyFilters)
@@ -67,6 +70,7 @@ export function FilterSidebar({ onFilterChange, brands, colors, categories }: Fi
     filters.sizes.length +
     (filters.inStock !== null ? 1 : 0) +
     (filters.category !== null ? 1 : 0) +
+    (filters.hasDiscount !== null ? 1 : 0) +
     (filters.priceRange[0] > 0 || filters.priceRange[1] < 1000 ? 1 : 0)
 
   return (
@@ -252,15 +256,26 @@ export function FilterSidebar({ onFilterChange, brands, colors, categories }: Fi
         isOpen={openSections.stock}
         onToggle={() => toggleSection('stock')}
       >
-        <label className="flex items-center gap-2 cursor-pointer group">
-          <input
-            type="checkbox"
-            checked={filters.inStock === true}
-            onChange={(e) => updateFilters({ inStock: e.target.checked ? true : null })}
-            className="w-4 h-4 accent-primary-600"
-          />
-          <span className="text-sm group-hover:text-primary-600 transition-colors">Solo productos en stock</span>
-        </label>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={filters.inStock === true}
+              onChange={(e) => updateFilters({ inStock: e.target.checked ? true : null })}
+              className="w-4 h-4 accent-primary-600"
+            />
+            <span className="text-sm group-hover:text-primary-600 transition-colors">Solo productos en stock</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={filters.hasDiscount === true}
+              onChange={(e) => updateFilters({ hasDiscount: e.target.checked ? true : null })}
+              className="w-4 h-4 accent-red-600"
+            />
+            <span className="text-sm group-hover:text-red-600 transition-colors">Solo con descuento</span>
+          </label>
+        </div>
       </FilterSection>
     </div>
   )
