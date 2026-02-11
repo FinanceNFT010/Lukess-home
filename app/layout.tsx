@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import WhatsAppFloat from "@/components/layout/WhatsAppFloat";
 import { CartProvider } from "@/lib/context/CartContext";
 import { WishlistProvider } from "@/lib/context/WishlistContext";
 import { Toaster } from "react-hot-toast";
@@ -112,7 +111,6 @@ export default function RootLayout({
             <Navbar />
             <main role="main">{children}</main>
             <Footer />
-            <WhatsAppFloat />
             <Toaster 
               position="bottom-right"
               containerStyle={{ bottom: 80 }}

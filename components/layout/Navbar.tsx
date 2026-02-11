@@ -94,7 +94,6 @@ export default function Navbar() {
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
-    setIsOpen(false);
     
     // Extraer el hash base y los parámetros
     const [hashBase, queryString] = href.split('?');
@@ -102,22 +101,28 @@ export default function Navbar() {
     
     if (pathname !== '/') {
       // Si no estamos en la home, navegar primero
+      setIsOpen(false);
       router.push(href);
     } else {
       // Si ya estamos en la home, hacer scroll y aplicar filtro
-      const element = document.getElementById(id);
-      if (element) {
-        const navbarHeight = 80;
-        const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
-        window.scrollTo({ top, behavior: 'smooth' });
-        
-        // Actualizar el hash con el filtro para que el catálogo lo detecte
-        if (queryString) {
-          window.history.pushState(null, '', href);
-          // Disparar evento hashchange manualmente
-          window.dispatchEvent(new HashChangeEvent('hashchange'));
+      // Cerrar menú primero y esperar un poco para el scroll
+      setIsOpen(false);
+      
+      setTimeout(() => {
+        const element = document.getElementById(id);
+        if (element) {
+          const navbarHeight = 80;
+          const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
+          window.scrollTo({ top, behavior: 'smooth' });
+          
+          // Actualizar el hash con el filtro para que el catálogo lo detecte
+          if (queryString) {
+            window.history.pushState(null, '', href);
+            // Disparar evento hashchange manualmente
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+          }
         }
-      }
+      }, 100); // Pequeño delay para que el menú se cierre primero
     }
   };
 

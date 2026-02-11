@@ -11,18 +11,18 @@ interface ProductBadgesProps {
 export function ProductBadges({ isNew, discount, lowStock, isBestSeller, collection }: ProductBadgesProps) {
   return (
     <>
-      {/* Badge NUEVO - Círculo llamativo en el CENTRO INFERIOR */}
+      {/* Badge NUEVO - Círculo en la parte inferior izquierda */}
       {isNew && (
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-2 left-2 z-20">
           <div className="relative">
-            <div className="w-16 h-16 bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-xl animate-pulse">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-xl animate-pulse">
               <div className="text-center">
-                <Sparkles className="w-4 h-4 text-white mx-auto mb-0.5" />
-                <span className="text-white text-[10px] font-black tracking-tight">NUEVO</span>
+                <Sparkles className="w-3 h-3 text-white mx-auto mb-0.5" />
+                <span className="text-white text-[9px] font-black tracking-tight">NUEVO</span>
               </div>
             </div>
             {/* Efecto de brillo */}
-            <div className="absolute inset-0 w-16 h-16 bg-gradient-to-br from-white/30 to-transparent rounded-full" />
+            <div className="absolute inset-0 w-12 h-12 bg-gradient-to-br from-white/30 to-transparent rounded-full" />
           </div>
         </div>
       )}
