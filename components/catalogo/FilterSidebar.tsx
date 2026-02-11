@@ -227,8 +227,8 @@ export function FilterSidebar({ onFilterChange, brands, colors, categories }: Fi
         isOpen={openSections.size}
         onToggle={() => toggleSection('size')}
       >
-        <div className="grid grid-cols-3 gap-2">
-          {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((size) => (
+        <div className="grid grid-cols-4 gap-2">
+          {['S', 'M', 'L', 'XL', '38', '40', '42', '44'].map((size) => (
             <button
               key={size}
               onClick={() => {

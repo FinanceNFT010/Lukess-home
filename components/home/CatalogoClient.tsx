@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import Container from '@/components/ui/Container'
-import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check, Sparkles, Percent } from 'lucide-react'
+import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check, Sparkles, Percent, Leaf, Eye } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import Image from 'next/image'
@@ -11,6 +11,8 @@ import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
 import { FilterSidebar, type Filters } from '@/components/catalogo/FilterSidebar'
 import { ProductBadges } from '@/components/catalogo/ProductBadges'
+import { QuickViewModal } from '@/components/catalogo/QuickViewModal'
+import { WishlistButton } from '@/components/wishlist/WishlistButton'
 
 interface CatalogoClientProps {
   initialProducts: Product[]
@@ -48,12 +50,12 @@ const cardVariants = {
   },
 }
 
-// Toast personalizado que no bloquea
+// Toast personalizado que no bloquea - Posición bottom-right
 const showAddedToast = (productName: string) => {
   toast.custom((t) => (
     <motion.div
-      initial={{ opacity: 0, y: -20, scale: 0.9 }}
-      animate={{ opacity: t.visible ? 1 : 0, y: t.visible ? 0 : -20, scale: t.visible ? 1 : 0.9 }}
+      initial={{ opacity: 0, x: 100, scale: 0.9 }}
+      animate={{ opacity: t.visible ? 1 : 0, x: t.visible ? 0 : 100, scale: t.visible ? 1 : 0.9 }}
       className="flex items-center gap-3 bg-white border-2 border-green-200 shadow-xl rounded-xl px-4 py-3 pointer-events-none"
     >
       <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
@@ -64,30 +66,34 @@ const showAddedToast = (productName: string) => {
         <p className="text-xs text-gray-500 truncate max-w-[180px]">{productName}</p>
       </div>
     </motion.div>
-  ), { duration: 1500, position: 'bottom-center' })
+  ), { duration: 1500, position: 'bottom-right' })
 }
 
 export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>('Todos')
-  const [selectedBrand, setSelectedBrand] = useState<string>('Todas')
-  const [selectedColor, setSelectedColor] = useState<string>('Todos')
+  // Estados de filtros - Ahora son arrays para multiselección
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([])
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([])
+  const [selectedColors, setSelectedColors] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
-  const [showSidebar, setShowSidebar] = useState(false)
   const [sidebarFilters, setSidebarFilters] = useState<Filters>({
     priceRange: [0, 1000],
     brands: [],
     colors: [],
     sizes: [],
-    inStock: true, // Por defecto mostrar solo en stock
+    inStock: true,
     category: null,
     hasDiscount: null,
   })
-  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('inStock') // Por defecto en stock
+  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('inStock')
   const [showNew, setShowNew] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
+  const [showCollection, setShowCollection] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [displayLimit, setDisplayLimit] = useState(20) // Mostrar 20 productos inicialmente
+  const [displayLimit, setDisplayLimit] = useState(20)
   const [sortOrder, setSortOrder] = useState<'recent' | 'price-asc' | 'price-desc'>('recent')
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null)
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false)
   const { addToCart } = useCart()
   const { ref, inView } = useInView({ 
     triggerOnce: true, 
@@ -95,23 +101,54 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     rootMargin: '50px'
   })
 
-  // Detectar búsqueda desde URL
+  // Detectar búsqueda desde URL - Se ejecuta al montar y cuando hay eventos
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const busqueda = params.get('busqueda')
-      if (busqueda) {
-        setSearchQuery(busqueda)
+    const updateSearchFromURL = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        const busqueda = params.get('busqueda')
+        const newQuery = busqueda ? decodeURIComponent(busqueda) : ''
+        
+        // Solo actualizar si es diferente para evitar loops
+        if (newQuery !== searchQuery) {
+          console.log('📝 Actualizando búsqueda desde URL:', newQuery)
+          
+          // IMPORTANTE: Limpiar todos los filtros antes de aplicar la búsqueda
+          if (newQuery) {
+            setSelectedCategories([])
+            setSelectedSubcategories([])
+            setSelectedBrands([])
+            setSelectedColors([])
+            setStockFilter('inStock')
+            setShowNew(false)
+            setShowDiscount(false)
+            setShowCollection(null)
+          }
+          
+          setSearchQuery(newQuery)
+        }
       }
+    }
+    
+    updateSearchFromURL()
+    
+    // Escuchar cambios en la búsqueda y en el popstate (navegación)
+    const handleSearchUpdate = () => {
+      setTimeout(updateSearchFromURL, 100)
+    }
+    
+    window.addEventListener('searchUpdate', handleSearchUpdate)
+    window.addEventListener('popstate', updateSearchFromURL)
+    
+    return () => {
+      window.removeEventListener('searchUpdate', handleSearchUpdate)
+      window.removeEventListener('popstate', updateSearchFromURL)
     }
   }, [])
 
-  // Función para verificar si un producto es nuevo (últimos 7 días)
+  // Función para verificar si un producto es nuevo (usa el campo is_new de la BD)
   const isProductNew = useCallback((product: Product): boolean => {
-    const createdDate = new Date(product.created_at)
-    const now = new Date()
-    const daysDiff = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
-    return daysDiff <= 7
+    return product.is_new === true
   }, [])
 
   // Función para verificar si tiene descuento
@@ -136,46 +173,114 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     return product.price * (discount / 100)
   }, [getDiscount])
 
-  // Detectar filtros desde URL hash (navbar)
+  // Detectar filtros desde URL hash (navbar) y eventos de banners
   useEffect(() => {
+    const resetFilters = () => {
+      setShowNew(false)
+      setShowDiscount(false)
+      setShowCollection(null)
+      setSelectedSubcategories([])
+      setSelectedCategories([])
+      setSelectedBrands([])
+      setSelectedColors([])
+    }
+
     const handleHashChange = () => {
       const hash = window.location.hash
       const params = new URLSearchParams(hash.split('?')[1] || '')
       const filter = params.get('filter')
-      const subcategory = params.get('subcategory')
       
+      // Resetear filtros primero
+      resetFilters()
+      
+      if (!filter) return
+      
+      // Filtros especiales
       if (filter === 'nuevo') {
         setShowNew(true)
-        setShowDiscount(false)
-        setSelectedCategory('Todos')
-      } else if (filter === 'descuento') {
+      } else if (filter === 'descuento' || filter === 'descuentos') {
         setShowDiscount(true)
-        setShowNew(false)
-        setSelectedCategory('Todos')
-      } else if (filter === 'camisas') {
-        setSelectedCategory('Camisas')
-        setShowNew(false)
-        setShowDiscount(false)
-        if (subcategory) setSelectedBrand(subcategory)
+      } else if (filter === 'primavera' || filter === 'collection-primavera') {
+        setShowCollection('primavera')
+      } 
+      // Categorías principales
+      else if (filter === 'camisas') {
+        setSelectedCategories(['Camisas'])
       } else if (filter === 'pantalones') {
-        setSelectedCategory('Pantalones')
-        setShowNew(false)
-        setShowDiscount(false)
-        if (subcategory) setSelectedBrand(subcategory)
+        setSelectedCategories(['Pantalones'])
       } else if (filter === 'blazers') {
-        setSelectedCategory('Blazers')
-        setShowNew(false)
-        setShowDiscount(false)
+        setSelectedCategories(['Blazers'])
       } else if (filter === 'accesorios') {
-        setSelectedCategory('Accesorios')
-        setShowNew(false)
-        setShowDiscount(false)
+        setSelectedCategories(['Accesorios'])
+      } else if (filter === 'chaquetas') {
+        setSelectedCategories(['Chaquetas'])
+      } else if (filter === 'polos') {
+        setSelectedCategories(['Polos'])
+      }
+      // Subcategorías de camisas
+      else if (filter === 'camisas-columbia') {
+        setSelectedCategories(['Camisas'])
+        setSelectedBrands(['Columbia'])
+      } else if (filter === 'camisas-manga-larga') {
+        setSelectedCategories(['Camisas'])
+        setSelectedSubcategories(['manga-larga'])
+      } else if (filter === 'camisas-manga-corta') {
+        setSelectedCategories(['Camisas'])
+        setSelectedSubcategories(['manga-corta'])
+      } else if (filter === 'camisas-elegantes') {
+        setSelectedCategories(['Camisas'])
+        setSelectedSubcategories(['elegante'])
+      }
+      // Subcategorías de pantalones
+      else if (filter === 'pantalones-oversize') {
+        setSelectedCategories(['Pantalones'])
+        setSelectedSubcategories(['oversize'])
+      } else if (filter === 'pantalones-jeans') {
+        setSelectedCategories(['Pantalones'])
+        setSelectedSubcategories(['jeans'])
+      } else if (filter === 'pantalones-elegantes') {
+        setSelectedCategories(['Pantalones'])
+        setSelectedSubcategories(['elegante'])
+      }
+      // Subcategorías de accesorios
+      else if (filter === 'accesorios-sombreros') {
+        setSelectedCategories(['Accesorios'])
+        setSelectedSubcategories(['sombreros'])
+      } else if (filter === 'accesorios-gorras') {
+        setSelectedCategories(['Accesorios'])
+        setSelectedSubcategories(['gorras'])
+      } else if (filter === 'accesorios-cinturones') {
+        setSelectedCategories(['Accesorios'])
+        setSelectedSubcategories(['cinturones'])
+      } else if (filter === 'accesorios-billeteras') {
+        setSelectedCategories(['Accesorios'])
+        setSelectedSubcategories(['billeteras'])
+      }
+    }
+    
+    // Escuchar eventos de los banners promocionales
+    const handlePromoFilter = (e: CustomEvent) => {
+      const filter = e.detail
+      resetFilters()
+      
+      if (filter === 'descuento' || filter === 'descuentos') {
+        setShowDiscount(true)
+      } else if (filter === 'primavera' || filter === 'collection-primavera') {
+        setShowCollection('primavera')
+      } else if (filter === 'camisas-columbia') {
+        setSelectedCategories(['Camisas'])
+        setSelectedBrands(['Columbia'])
       }
     }
     
     handleHashChange()
     window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
+    window.addEventListener('applyPromoFilter', handlePromoFilter as EventListener)
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange)
+      window.removeEventListener('applyPromoFilter', handlePromoFilter as EventListener)
+    }
   }, [])
 
   // Extraer categorías únicas
@@ -226,34 +331,54 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
 
   // Filtrar y ordenar productos con todos los filtros
   const filteredProducts = useMemo(() => {
+    console.log('🔍 Filtrando productos con búsqueda:', searchQuery)
+    
     let filtered = initialProducts.filter(p => {
-      // Filtro de búsqueda
+      // Filtro de búsqueda - MEJORADO para incluir más campos
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
         const matchesName = p.name.toLowerCase().includes(query)
         const matchesBrand = p.brand?.toLowerCase().includes(query)
         const matchesCategory = p.categories?.name.toLowerCase().includes(query)
         const matchesDescription = p.description?.toLowerCase().includes(query)
+        const matchesSKU = p.sku?.toLowerCase().includes(query)
         
-        if (!matchesName && !matchesBrand && !matchesCategory && !matchesDescription) {
+        // Buscar en colores
+        const matchesColor = p.colors?.some(color => 
+          color.toLowerCase().includes(query)
+        )
+        
+        // Buscar en tallas
+        const matchesSize = p.sizes?.some(size => 
+          size.toLowerCase().includes(query)
+        )
+        
+        // Buscar palabras clave especiales
+        const matchesKeywords = 
+          (query === 'nuevo' || query === 'nuevos') && p.is_new === true ||
+          (query === 'descuento' || query === 'descuentos' || query === 'oferta' || query === 'ofertas') && hasDiscount(p) ||
+          (query === 'primavera') && p.collection === 'primavera'
+        
+        if (!matchesName && !matchesBrand && !matchesCategory && !matchesDescription && 
+            !matchesSKU && !matchesColor && !matchesSize && !matchesKeywords) {
           return false
         }
       }
       
-      // Filtro por "NUEVO" (últimos 7 días)
+      // Filtro por "NUEVO" (productos con is_new = true)
       if (showNew && !isProductNew(p)) return false
       
       // Filtro por "DESCUENTO"
       if (showDiscount && !hasDiscount(p)) return false
       
+      // Filtro por colección (primavera, verano, etc.)
+      if (showCollection && p.collection !== showCollection) return false
+      
+      // Filtro por subcategorías (multiselección)
+      if (selectedSubcategories.length > 0 && !selectedSubcategories.includes(p.subcategory || '')) return false
+      
       // Filtros del sidebar - Precio
       if (p.price < sidebarFilters.priceRange[0] || p.price > sidebarFilters.priceRange[1]) return false
-      
-      // Filtros del sidebar - Marca
-      if (sidebarFilters.brands.length > 0 && p.brand && !sidebarFilters.brands.includes(p.brand)) return false
-      
-      // Filtros del sidebar - Color
-      if (sidebarFilters.colors.length > 0 && (!p.colors || !p.colors.some(c => sidebarFilters.colors.includes(c)))) return false
       
       // Filtros del sidebar - Talla
       if (sidebarFilters.sizes.length > 0 && (!p.sizes || !p.sizes.some(s => sidebarFilters.sizes.includes(s)))) return false
@@ -265,19 +390,14 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       // Filtros del sidebar - Descuento
       if (sidebarFilters.hasDiscount && !hasDiscount(p)) return false
       
-      // Filtros del sidebar - Categoría
-      if (sidebarFilters.category && p.categories?.name !== sidebarFilters.category) return false
+      // Filtro por categorías (multiselección)
+      if (selectedCategories.length > 0 && !selectedCategories.includes(p.categories?.name || '')) return false
       
-      // Filtro por categoría (botones superiores)
-      if (selectedCategory !== 'Todos' && p.categories?.name !== selectedCategory) return false
+      // Filtro por marcas (multiselección)
+      if (selectedBrands.length > 0 && !selectedBrands.includes(p.brand || '')) return false
       
-      // Filtro por marca (botones superiores)
-      if (selectedBrand !== 'Todas' && p.brand !== selectedBrand) return false
-      
-      // Filtro por color (botones superiores)
-      if (selectedColor !== 'Todos') {
-        if (!p.colors || !p.colors.includes(selectedColor)) return false
-      }
+      // Filtro por colores (multiselección)
+      if (selectedColors.length > 0 && (!p.colors || !p.colors.some(c => selectedColors.includes(c)))) return false
       
       // Filtro por stock (botones superiores)
       if (stockFilter === 'inStock' && stock === 0) return false
@@ -300,38 +420,46 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     })
 
     return sorted
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount, searchQuery, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount, sortOrder, getPriceWithDiscount])
+  }, [selectedCategories, selectedSubcategories, selectedBrands, selectedColors, stockFilter, showNew, showDiscount, showCollection, searchQuery, sidebarFilters, initialProducts, getTotalStock, isProductNew, hasDiscount, sortOrder, getPriceWithDiscount])
 
   // Contar filtros activos
   const activeFiltersCount = useMemo(() => {
     let count = 0
-    if (selectedCategory !== 'Todos') count++
-    if (selectedBrand !== 'Todas') count++
-    if (selectedColor !== 'Todos') count++
-    if (stockFilter !== 'all') count++
+    count += selectedCategories.length
+    count += selectedSubcategories.length
+    count += selectedBrands.length
+    count += selectedColors.length
+    count += sidebarFilters.sizes.length
+    if (stockFilter !== 'inStock') count++ // inStock es el default
     if (showNew) count++
     if (showDiscount) count++
+    if (showCollection) count++
+    if (searchQuery.trim()) count++
     return count
-  }, [selectedCategory, selectedBrand, selectedColor, stockFilter, showNew, showDiscount])
+  }, [selectedCategories, selectedSubcategories, selectedBrands, selectedColors, sidebarFilters.sizes, stockFilter, showNew, showDiscount, showCollection, searchQuery])
 
   // Limpiar todos los filtros
   const clearAllFilters = () => {
-    setSelectedCategory('Todos')
-    setSelectedBrand('Todas')
-    setSelectedColor('Todos')
-    setStockFilter('all')
+    setSelectedCategories([])
+    setSelectedSubcategories([])
+    setSelectedBrands([])
+    setSelectedColors([])
+    setStockFilter('inStock') // Volver al default
     setShowNew(false)
     setShowDiscount(false)
+    setShowCollection(null)
     setSidebarFilters({
       priceRange: [0, 1000],
       brands: [],
       colors: [],
       sizes: [],
-      inStock: null,
+      inStock: true, // Volver al default
       category: null,
       hasDiscount: null,
     })
     setSearchQuery('')
+    // Limpiar la URL
+    window.history.pushState(null, '', '/#catalogo')
   }
 
   const handleAddToCart = (product: Product) => {
@@ -355,6 +483,18 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       `\n¿Tienen disponible?`
     )
     window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
+  }
+
+  const handleQuickView = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setQuickViewProduct(product)
+    setIsQuickViewOpen(true)
+  }
+
+  const closeQuickView = () => {
+    setIsQuickViewOpen(false)
+    setTimeout(() => setQuickViewProduct(null), 300)
   }
 
   return (
@@ -394,25 +534,25 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             </div>
           </motion.div>
 
-          {/* ── Barra de Filtros ── */}
+          {/* ── Barra de Filtros Simplificada ── */}
           <motion.div
             variants={headingVariants}
             className="mb-8 md:mb-12"
           >
-            {/* Filtros rápidos: NUEVO y DESCUENTO */}
+            {/* Filtros rápidos principales */}
             <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-4">
+              {/* Botón Nuevo */}
               <button
                 onClick={() => {
-                  setShowNew(!showNew)
-                  setShowDiscount(false)
-                  setSelectedCategory('Todos')
+                  clearAllFilters()
+                  setShowNew(true)
                 }}
                 className={`
                   px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
                   transition-all duration-300 flex items-center gap-2
                   ${
                     showNew
-                      ? 'bg-accent-400 text-white shadow-lg shadow-accent-400/25 scale-105'
+                      ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-400/30 scale-105'
                       : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
                   }
                 `}
@@ -421,18 +561,18 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                 Nuevo
               </button>
 
+              {/* Botón Descuentos */}
               <button
                 onClick={() => {
-                  setShowDiscount(!showDiscount)
-                  setShowNew(false)
-                  setSelectedCategory('Todos')
+                  clearAllFilters()
+                  setShowDiscount(true)
                 }}
                 className={`
                   px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
                   transition-all duration-300 flex items-center gap-2
                   ${
                     showDiscount
-                      ? 'bg-green-600 text-white shadow-lg shadow-green-600/25 scale-105'
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/30 scale-105'
                       : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
                   }
                 `}
@@ -440,55 +580,42 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                 <Percent className="w-4 h-4" />
                 Descuentos
               </button>
+
+              {/* Botón Colección Primavera */}
+              <button
+                onClick={() => {
+                  clearAllFilters()
+                  setShowCollection('primavera')
+                }}
+                className={`
+                  px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
+                  transition-all duration-300 flex items-center gap-2
+                  ${
+                    showCollection === 'primavera'
+                      ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-lg shadow-green-400/30 scale-105'
+                      : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
+                  }
+                `}
+              >
+                <Leaf className="w-4 h-4" />
+                Primavera
+              </button>
             </div>
 
-            {/* Categorías principales */}
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-4">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => {
-                    setSelectedCategory(cat)
-                    setShowNew(false)
-                    setShowDiscount(false)
-                  }}
-                  className={`
-                    px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold
-                    transition-all duration-300
-                    ${
-                      selectedCategory === cat
-                        ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25 scale-105'
-                        : 'bg-secondary-100 text-secondary-600 hover:bg-secondary-200 hover:text-secondary-800'
-                    }
-                  `}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            {/* Botón de filtros avanzados + contador */}
+            {/* Botón de filtros + contador + ordenamiento */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
               <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white bg-primary-800 hover:bg-primary-900 transition-all shadow-lg"
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-                Filtros Avanzados
-              </button>
-
-              <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  showFilters || activeFiltersCount > 0
-                    ? 'bg-primary-100 text-primary-700 border-2 border-primary-300'
-                    : 'bg-secondary-50 text-secondary-600 border-2 border-secondary-200 hover:border-secondary-300'
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all shadow-md ${
+                  showFilters
+                    ? 'bg-primary-800 text-white'
+                    : 'bg-primary-700 text-white hover:bg-primary-800'
                 }`}
               >
-                <Filter className="w-4 h-4" />
-                Más Filtros
+                <SlidersHorizontal className="w-4 h-4" />
+                Filtros
                 {activeFiltersCount > 0 && (
-                  <span className="bg-primary-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  <span className="bg-white text-primary-700 text-xs font-bold px-2 py-0.5 rounded-full">
                     {activeFiltersCount}
                   </span>
                 )}
@@ -497,10 +624,10 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
               {activeFiltersCount > 0 && (
                 <button
                   onClick={clearAllFilters}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50 transition-all"
+                  className="inline-flex items-center gap-1 px-4 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50 transition-all border border-red-200"
                 >
                   <X className="w-4 h-4" />
-                  Limpiar
+                  Limpiar filtros
                 </button>
               )}
             </div>
@@ -528,7 +655,100 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
               </div>
             </div>
 
-            {/* Panel de filtros avanzados */}
+            {/* Filtros activos visuales */}
+            {activeFiltersCount > 0 && (
+              <div className="px-4 mt-4">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-semibold text-secondary-600">Filtros activos:</span>
+                  
+                  {searchQuery && (
+                    <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                      🔍 "{searchQuery}"
+                      <button onClick={() => {
+                        setSearchQuery('')
+                        window.history.pushState(null, '', '/#catalogo')
+                      }} className="hover:text-blue-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  
+                  {selectedCategories.map(cat => (
+                    <span key={cat} className="inline-flex items-center gap-1 bg-primary-100 text-primary-700 px-3 py-1 rounded-full text-xs font-medium">
+                      {cat}
+                      <button onClick={() => setSelectedCategories(selectedCategories.filter(c => c !== cat))} className="hover:text-primary-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  
+                  {selectedSubcategories.map(sub => (
+                    <span key={sub} className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
+                      {sub}
+                      <button onClick={() => setSelectedSubcategories(selectedSubcategories.filter(s => s !== sub))} className="hover:text-purple-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  
+                  {selectedBrands.map(brand => (
+                    <span key={brand} className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">
+                      {brand}
+                      <button onClick={() => setSelectedBrands(selectedBrands.filter(b => b !== brand))} className="hover:text-amber-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  
+                  {selectedColors.map(color => (
+                    <span key={color} className="inline-flex items-center gap-1 bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-medium">
+                      {color}
+                      <button onClick={() => setSelectedColors(selectedColors.filter(c => c !== color))} className="hover:text-pink-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  
+                  {sidebarFilters.sizes.map(size => (
+                    <span key={size} className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                      Talla {size}
+                      <button onClick={() => setSidebarFilters({...sidebarFilters, sizes: sidebarFilters.sizes.filter(s => s !== size)})} className="hover:text-green-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  
+                  {showNew && (
+                    <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">
+                      ✨ Nuevo
+                      <button onClick={() => setShowNew(false)} className="hover:text-amber-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  
+                  {showDiscount && (
+                    <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-medium">
+                      % Descuentos
+                      <button onClick={() => setShowDiscount(false)} className="hover:text-red-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  
+                  {showCollection && (
+                    <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                      🌸 {showCollection}
+                      <button onClick={() => setShowCollection(null)} className="hover:text-green-900">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Panel de filtros completo */}
             <AnimatePresence>
               {showFilters && (
                 <motion.div
@@ -538,54 +758,254 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   className="overflow-hidden"
                 >
                   <div className="mt-6 p-6 bg-secondary-50 rounded-2xl border border-secondary-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {/* Filtro por Marca */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      
+                      {/* Categoría - Multiselección con checkboxes */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700">
+                            <Tag className="w-4 h-4 text-primary-500" />
+                            Categoría {selectedCategories.length > 0 && `(${selectedCategories.length})`}
+                          </label>
+                          {selectedCategories.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setSelectedCategories([])
+                                setSelectedSubcategories([])
+                              }}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium"
+                            >
+                              Limpiar
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          {categories.filter(c => c !== 'Todos').map((cat) => (
+                            <label key={cat} className="flex items-center gap-2 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={selectedCategories.includes(cat)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedCategories([...selectedCategories, cat])
+                                  } else {
+                                    setSelectedCategories(selectedCategories.filter(c => c !== cat))
+                                    // Limpiar subcategorías de esta categoría
+                                    setSelectedSubcategories([])
+                                  }
+                                }}
+                                className="w-4 h-4 accent-primary-600 rounded"
+                              />
+                              <span className="text-sm group-hover:text-primary-600 transition-colors">{cat}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Subcategorías - Multiselección */}
+                      {(selectedCategories.includes('Camisas') || selectedCategories.includes('Pantalones') || selectedCategories.includes('Accesorios')) && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700">
+                              <Filter className="w-4 h-4 text-primary-500" />
+                              Subcategoría {selectedSubcategories.length > 0 && `(${selectedSubcategories.length})`}
+                            </label>
+                            {selectedSubcategories.length > 0 && (
+                              <button
+                                onClick={() => setSelectedSubcategories([])}
+                                className="text-xs text-red-600 hover:text-red-700 font-medium"
+                              >
+                                Limpiar
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            {selectedCategories.includes('Camisas') && (
+                              <>
+                                <p className="text-xs text-gray-500 font-semibold mb-1">Camisas:</p>
+                                {[
+                                  { label: 'Manga Larga', value: 'manga-larga' },
+                                  { label: 'Manga Corta', value: 'manga-corta' },
+                                  { label: 'Elegantes', value: 'elegante' },
+                                ].map((sub) => (
+                                  <label key={sub.value} className="flex items-center gap-2 cursor-pointer group ml-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedSubcategories.includes(sub.value)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedSubcategories([...selectedSubcategories, sub.value])
+                                        } else {
+                                          setSelectedSubcategories(selectedSubcategories.filter(s => s !== sub.value))
+                                        }
+                                      }}
+                                      className="w-4 h-4 accent-primary-600 rounded"
+                                    />
+                                    <span className="text-sm group-hover:text-primary-600 transition-colors">{sub.label}</span>
+                                  </label>
+                                ))}
+                              </>
+                            )}
+                            {selectedCategories.includes('Pantalones') && (
+                              <>
+                                <p className="text-xs text-gray-500 font-semibold mb-1 mt-2">Pantalones:</p>
+                                {[
+                                  { label: 'Oversize', value: 'oversize' },
+                                  { label: 'Jeans', value: 'jeans' },
+                                  { label: 'Elegantes', value: 'elegante' },
+                                ].map((sub) => (
+                                  <label key={sub.value} className="flex items-center gap-2 cursor-pointer group ml-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedSubcategories.includes(sub.value)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedSubcategories([...selectedSubcategories, sub.value])
+                                        } else {
+                                          setSelectedSubcategories(selectedSubcategories.filter(s => s !== sub.value))
+                                        }
+                                      }}
+                                      className="w-4 h-4 accent-primary-600 rounded"
+                                    />
+                                    <span className="text-sm group-hover:text-primary-600 transition-colors">{sub.label}</span>
+                                  </label>
+                                ))}
+                              </>
+                            )}
+                            {selectedCategories.includes('Accesorios') && (
+                              <>
+                                <p className="text-xs text-gray-500 font-semibold mb-1 mt-2">Accesorios:</p>
+                                {[
+                                  { label: 'Sombreros', value: 'sombreros' },
+                                  { label: 'Gorras', value: 'gorras' },
+                                  { label: 'Cinturones', value: 'cinturones' },
+                                  { label: 'Billeteras', value: 'billeteras' },
+                                ].map((sub) => (
+                                  <label key={sub.value} className="flex items-center gap-2 cursor-pointer group ml-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedSubcategories.includes(sub.value)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedSubcategories([...selectedSubcategories, sub.value])
+                                        } else {
+                                          setSelectedSubcategories(selectedSubcategories.filter(s => s !== sub.value))
+                                        }
+                                      }}
+                                      className="w-4 h-4 accent-primary-600 rounded"
+                                    />
+                                    <span className="text-sm group-hover:text-primary-600 transition-colors">{sub.label}</span>
+                                  </label>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Filtro por Marca - Multiselección */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700">
+                            <Building2 className="w-4 h-4 text-primary-500" />
+                            Marca {selectedBrands.length > 0 && `(${selectedBrands.length})`}
+                          </label>
+                          {selectedBrands.length > 0 && (
+                            <button
+                              onClick={() => setSelectedBrands([])}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium"
+                            >
+                              Limpiar
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {brands.filter(b => b !== 'Todas').map((brand) => (
+                            <label key={brand} className="flex items-center gap-2 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={selectedBrands.includes(brand)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedBrands([...selectedBrands, brand])
+                                  } else {
+                                    setSelectedBrands(selectedBrands.filter(b => b !== brand))
+                                  }
+                                }}
+                                className="w-4 h-4 accent-primary-600 rounded"
+                              />
+                              <span className="text-sm group-hover:text-primary-600 transition-colors">{brand}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filtro por Color - Multiselección */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700">
+                            <Palette className="w-4 h-4 text-primary-500" />
+                            Color {selectedColors.length > 0 && `(${selectedColors.length})`}
+                          </label>
+                          {selectedColors.length > 0 && (
+                            <button
+                              onClick={() => setSelectedColors([])}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium"
+                            >
+                              Limpiar
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          {colors.filter(c => c !== 'Todos').map((color) => (
+                            <label key={color} className="flex items-center gap-2 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={selectedColors.includes(color)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedColors([...selectedColors, color])
+                                  } else {
+                                    setSelectedColors(selectedColors.filter(c => c !== color))
+                                  }
+                                }}
+                                className="w-4 h-4 accent-primary-600 rounded"
+                              />
+                              <span className="text-sm group-hover:text-primary-600 transition-colors">{color}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filtro por Talla - Solo las tallas especificadas */}
                       <div>
                         <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-3">
-                          <Building2 className="w-4 h-4 text-primary-500" />
-                          Marca
+                          <Ruler className="w-4 h-4 text-primary-500" />
+                          Talla
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {brands.map((brand) => (
+                          {['S', 'M', 'L', 'XL', '38', '40', '42', '44'].map((size) => (
                             <button
-                              key={brand}
-                              onClick={() => setSelectedBrand(brand)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                selectedBrand === brand
+                              key={size}
+                              onClick={() => {
+                                const newSizes = sidebarFilters.sizes.includes(size)
+                                  ? sidebarFilters.sizes.filter(s => s !== size)
+                                  : [...sidebarFilters.sizes, size]
+                                setSidebarFilters({ ...sidebarFilters, sizes: newSizes })
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all min-w-[40px] ${
+                                sidebarFilters.sizes.includes(size)
                                   ? 'bg-primary-500 text-white'
                                   : 'bg-white text-secondary-600 border border-secondary-200 hover:border-primary-300'
                               }`}
                             >
-                              {brand}
+                              {size}
                             </button>
                           ))}
                         </div>
                       </div>
 
-                      {/* Filtro por Color */}
-                      <div>
-                        <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-3">
-                          <Palette className="w-4 h-4 text-primary-500" />
-                          Color
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {colors.map((color) => (
-                            <button
-                              key={color}
-                              onClick={() => setSelectedColor(color)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                selectedColor === color
-                                  ? 'bg-primary-500 text-white'
-                                  : 'bg-white text-secondary-600 border border-secondary-200 hover:border-primary-300'
-                              }`}
-                            >
-                              {color}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Filtro por Stock */}
+                      {/* Filtro por Disponibilidad */}
                       <div>
                         <label className="flex items-center gap-2 text-sm font-semibold text-secondary-700 mb-3">
                           <Ruler className="w-4 h-4 text-primary-500" />
@@ -631,30 +1051,8 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             </AnimatePresence>
           </motion.div>
 
-          {/* ── Layout con Sidebar ── */}
-          <div className="flex gap-6">
-            {/* Sidebar de filtros */}
-            <AnimatePresence>
-              {showSidebar && (
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="hidden lg:block"
-                >
-                  <FilterSidebar
-                    onFilterChange={setSidebarFilters}
-                    brands={brands.filter(b => b !== 'Todas')}
-                    colors={colors.filter(c => c !== 'Todos')}
-                    categories={categories.filter(c => c !== 'Todos')}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Grid de productos */}
-            <div className="flex-1">
+          {/* ── Grid de productos ── */}
+          <div>
               {filteredProducts.length === 0 ? (
                 /* Estado vacío */
                 <motion.div
@@ -681,14 +1079,13 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                 </motion.div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 lg:gap-6">
-                {filteredProducts.slice(0, displayLimit).map((product, index) => {
+                {filteredProducts.slice(0, displayLimit).map((product) => {
                 const stock = getTotalStock(product)
                 const isOutOfStock = stock === 0
                 
                 return (
-                  <motion.div
+                  <div
                     key={product.id}
-                    variants={cardVariants}
                     className="group bg-white rounded-2xl border border-secondary-100 hover:border-primary-300 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 md:hover:-translate-y-1 cursor-pointer"
                   >
                     {/* Wrapper clickeable para toda la card */}
@@ -710,13 +1107,24 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         discount={getDiscount(product) || undefined}
                         lowStock={isOutOfStock ? 0 : stock}
                         isBestSeller={product.is_best_seller}
+                        collection={product.collection}
                       />
 
-                      {/* Efecto hover sutil - sin overlay oscuro */}
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
-                        <div className="bg-primary-800 text-white px-6 py-2 rounded-full text-sm font-bold shadow-xl animate-pulse">
-                          Click para ver
-                        </div>
+                      {/* Botón Wishlist */}
+                      <WishlistButton 
+                        productId={product.id} 
+                        productName={product.name}
+                      />
+
+                      {/* Botón Vista Rápida - aparece al hover */}
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
+                        <button
+                          onClick={(e) => handleQuickView(e, product)}
+                          className="bg-white hover:bg-primary-600 text-primary-800 hover:text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-xl border-2 border-primary-600 transition-all duration-300 hover:scale-110 flex items-center gap-2 pointer-events-auto"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Vista Rápida
+                        </button>
                       </div>
                     </div>
 
@@ -816,14 +1224,14 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                           )}
                         </div>
                         <div className="text-right">
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                          <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
                             stock === 0 
-                              ? 'bg-gray-100 text-gray-600' 
+                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' 
                               : stock < 10 
-                                ? 'bg-amber-100 text-amber-700' 
-                                : 'bg-green-100 text-green-700'
+                                ? 'bg-amber-500 text-white shadow-md' 
+                                : 'bg-green-500 text-white shadow-md'
                           }`}>
-                            {stock === 0 ? 'Sin stock' : stock < 10 ? 'Pocas unidades' : 'En stock'}
+                            {stock === 0 ? '🚫 SIN STOCK' : stock < 10 ? '⚠️ Pocas unidades' : '✓ En stock'}
                           </span>
                         </div>
                       </div>
@@ -854,7 +1262,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         <MessageCircle className="w-4 h-4" />
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 )
               })}
                 </div>
@@ -891,10 +1299,20 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                   Pregunta por más productos
                 </a>
               </motion.div>
-            </div>
           </div>
         </motion.div>
       </Container>
+
+      {/* Quick View Modal */}
+      <QuickViewModal
+        product={quickViewProduct}
+        isOpen={isQuickViewOpen}
+        onClose={closeQuickView}
+        getTotalStock={getTotalStock}
+        getDiscount={getDiscount}
+        getPriceWithDiscount={getPriceWithDiscount}
+        hasDiscount={hasDiscount}
+      />
     </section>
   )
 }

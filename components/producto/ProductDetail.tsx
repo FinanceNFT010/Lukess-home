@@ -3,12 +3,13 @@ import { useState } from 'react'
 import Container from '@/components/ui/Container'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
-import { ShoppingCart, MessageCircle, Package, TrendingUp, ChevronRight, Home, Percent } from 'lucide-react'
+import { ShoppingCart, MessageCircle, Package, TrendingUp, ChevronRight, Home, Percent, Ruler } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { ProductGallery } from './ProductGallery'
+import { SizeGuideModal } from './SizeGuideModal'
 
 interface ProductDetailProps {
   product: Product
@@ -20,6 +21,7 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   const [selectedSize, setSelectedSize] = useState<string>('')
   const [selectedColor, setSelectedColor] = useState<string>('')
   const [quantity, setQuantity] = useState(1)
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false)
 
   const getTotalStock = (p: Product): number => {
     return p.inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0
@@ -210,9 +212,18 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
               {/* Sizes */}
               {product.sizes && product.sizes.length > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    Selecciona una talla:
-                  </label>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Selecciona una talla:
+                    </label>
+                    <button
+                      onClick={() => setIsSizeGuideOpen(true)}
+                      className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                    >
+                      <Ruler className="w-4 h-4" />
+                      Guía de tallas
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {product.sizes.map((size) => (
                       <button
@@ -372,6 +383,13 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
           )}
         </Container>
       </section>
+
+      {/* Size Guide Modal */}
+      <SizeGuideModal
+        isOpen={isSizeGuideOpen}
+        onClose={() => setIsSizeGuideOpen(false)}
+        category={product.categories?.name}
+      />
     </>
   )
 }

@@ -8,22 +8,22 @@ import { useRouter } from 'next/navigation'
 const promos = [
   {
     id: 1,
-    title: '20% OFF en Camisas Columbia',
-    subtitle: 'Solo por tiempo limitado',
-    cta: 'Comprar ahora',
-    href: '/#catalogo',
-    filter: 'camisas-columbia',
-    bg: 'linear-gradient(135deg, #1A1A1A 0%, #8B7355 100%)',
+    title: '20% OFF',
+    subtitle: 'Descuentos en productos seleccionados',
+    cta: 'Ver ofertas',
+    href: '/#catalogo?filter=descuentos',
+    filter: 'descuentos',
+    bg: 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)',
     textColor: 'white',
   },
   {
     id: 2,
     title: 'Nueva Colección Primavera',
-    subtitle: 'Blazers desde Bs 450',
+    subtitle: 'Descubre los nuevos estilos de temporada',
     cta: 'Ver colección',
-    href: '/#catalogo',
-    filter: 'blazers',
-    bg: 'linear-gradient(135deg, #D4A574 0%, #8B7355 100%)',
+    href: '/#catalogo?filter=primavera',
+    filter: 'primavera',
+    bg: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
     textColor: 'white',
   },
   {
@@ -54,20 +54,25 @@ export function PromoBanner() {
 
   const handlePromoClick = (e: React.MouseEvent, promo: typeof promos[0]) => {
     e.preventDefault()
-    const id = promo.href.replace('/#', '')
+    
+    // Extraer el ID del hash
+    const [hashBase] = promo.href.split('?')
+    const id = hashBase.replace('/#', '')
     const element = document.getElementById(id)
     
     if (element) {
+      // Actualizar la URL con el filtro
+      window.history.pushState(null, '', promo.href)
+      
+      // Hacer scroll al elemento
       const navbarHeight = 80
       const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight
       window.scrollTo({ top, behavior: 'smooth' })
       
-      // Aplicar filtro si existe
-      if (promo.filter) {
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('applyPromoFilter', { detail: promo.filter }))
-        }, 500)
-      }
+      // Disparar evento hashchange para que el catálogo lo detecte
+      setTimeout(() => {
+        window.dispatchEvent(new HashChangeEvent('hashchange'))
+      }, 300)
     }
   }
 

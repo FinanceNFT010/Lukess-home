@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppFloat from "@/components/layout/WhatsAppFloat";
 import { CartProvider } from "@/lib/context/CartContext";
+import { WishlistProvider } from "@/lib/context/WishlistContext";
 import { Toaster } from "react-hot-toast";
 
 const inter = Inter({
@@ -100,19 +101,27 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/favicon.svg" />
       </head>
       <body className="font-sans">
-        <CartProvider>
-          <a
-            href="#inicio"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-primary-500 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg"
-          >
-            Saltar al contenido principal
-          </a>
-          <Navbar />
-          <main role="main">{children}</main>
-          <Footer />
-          <WhatsAppFloat />
-          <Toaster position="top-right" />
-        </CartProvider>
+        <WishlistProvider>
+          <CartProvider>
+            <a
+              href="#inicio"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-primary-500 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg"
+            >
+              Saltar al contenido principal
+            </a>
+            <Navbar />
+            <main role="main">{children}</main>
+            <Footer />
+            <WhatsAppFloat />
+            <Toaster 
+              position="bottom-right"
+              containerStyle={{ bottom: 80 }}
+              toastOptions={{
+                duration: 1500,
+              }}
+            />
+          </CartProvider>
+        </WishlistProvider>
       </body>
     </html>
   );

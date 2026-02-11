@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Menu, X, MessageCircle, Search } from "lucide-react";
+import { Menu, X, MessageCircle, Search, Heart, ShoppingCart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import Container from "@/components/ui/Container";
 import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CheckoutModal } from "@/components/cart/CheckoutModal";
+import { WishlistIcon } from "@/components/wishlist/WishlistIcon";
 
 const WHATSAPP_URL =
   "https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20me%20interesa%20conocer%20sus%20productos";
@@ -16,12 +17,12 @@ const WHATSAPP_URL =
 const categories = [
   {
     name: 'NUEVO',
-    href: '/#catalogo',
+    href: '/#catalogo?filter=nuevo',
     filter: 'nuevo',
   },
   {
     name: 'CAMISAS',
-    href: '/#catalogo',
+    href: '/#catalogo?filter=camisas',
     filter: 'camisas',
     subcategories: [
       { name: 'Columbia', filter: 'camisas-columbia' },
@@ -32,7 +33,7 @@ const categories = [
   },
   {
     name: 'PANTALONES',
-    href: '/#catalogo',
+    href: '/#catalogo?filter=pantalones',
     filter: 'pantalones',
     subcategories: [
       { name: 'Oversize', filter: 'pantalones-oversize' },
@@ -42,12 +43,12 @@ const categories = [
   },
   {
     name: 'BLAZERS',
-    href: '/#catalogo',
+    href: '/#catalogo?filter=blazers',
     filter: 'blazers',
   },
   {
     name: 'ACCESORIOS',
-    href: '/#catalogo',
+    href: '/#catalogo?filter=accesorios',
     filter: 'accesorios',
     subcategories: [
       { name: 'Sombreros', filter: 'accesorios-sombreros' },
@@ -89,15 +90,27 @@ export default function Navbar() {
     e.preventDefault();
     setIsOpen(false);
     
+    // Extraer el hash base y los parámetros
+    const [hashBase, queryString] = href.split('?');
+    const id = hashBase.replace('/#', '');
+    
     if (pathname !== '/') {
+      // Si no estamos en la home, navegar primero
       router.push(href);
     } else {
-      const id = href.replace('/#', '');
+      // Si ya estamos en la home, hacer scroll y aplicar filtro
       const element = document.getElementById(id);
       if (element) {
         const navbarHeight = 80;
         const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
         window.scrollTo({ top, behavior: 'smooth' });
+        
+        // Actualizar el hash con el filtro para que el catálogo lo detecte
+        if (queryString) {
+          window.history.pushState(null, '', href);
+          // Disparar evento hashchange manualmente
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        }
       }
     }
   };
@@ -105,7 +118,23 @@ export default function Navbar() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/?busqueda=${encodeURIComponent(searchQuery)}#catalogo`);
+      const searchUrl = `/?busqueda=${encodeURIComponent(searchQuery)}#catalogo`;
+      
+      if (pathname !== '/') {
+        // Si no estamos en la home, navegar
+        router.push(searchUrl);
+      } else {
+        // Si ya estamos en la home, actualizar URL y hacer scroll
+        window.history.pushState(null, '', searchUrl);
+        const element = document.getElementById('catalogo');
+        if (element) {
+          const navbarHeight = 80;
+          const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
+          window.scrollTo({ top, behavior: 'smooth' });
+        }
+        // Disparar evento para que el catálogo detecte el cambio
+        window.dispatchEvent(new Event('searchUpdate'));
+      }
       setSearchQuery('');
     }
   };
@@ -198,6 +227,11 @@ export default function Navbar() {
                 </div>
               </form>
 
+              {/* Wishlist Icon */}
+              <div className="hidden lg:block">
+                <WishlistIcon />
+              </div>
+
               {/* Cart Button */}
               <div className="hidden lg:block">
                 <CartButton onClick={() => setIsCartOpen(true)} />
@@ -208,10 +242,10 @@ export default function Navbar() {
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white px-3 py-2.5 lg:px-5 lg:py-2.5 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg shadow-whatsapp/20"
+                className="inline-flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white px-4 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg shadow-whatsapp/20 flex-shrink-0"
               >
-                <MessageCircle className="w-4 h-4" />
-                <span className="hidden lg:inline">WhatsApp</span>
+                <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden md:inline">WhatsApp</span>
               </a>
 
               {/* Hamburger */}
@@ -251,6 +285,27 @@ export default function Navbar() {
               className="lg:hidden bg-white border-t border-gray-100 overflow-hidden"
             >
               <div className="px-6 py-5 space-y-1">
+                {/* Mobile search - PRIMERO */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="mb-4"
+                >
+                  <form onSubmit={handleSearch}>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Buscar productos..."
+                        className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-primary-600 focus:outline-none"
+                      />
+                    </div>
+                  </form>
+                </motion.div>
+
                 {categories.map((category, i) => (
                   <motion.div
                     key={category.name}
@@ -313,31 +368,7 @@ export default function Navbar() {
                   </motion.div>
                 ))}
 
-                {/* Mobile search */}
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    delay: (categories.length + quickLinks.length) * 0.05,
-                    duration: 0.25,
-                  }}
-                  className="pt-3"
-                >
-                  <form onSubmit={handleSearch}>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Buscar productos..."
-                        className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-primary-600 focus:outline-none"
-                      />
-                    </div>
-                  </form>
-                </motion.div>
-
-                {/* Cart Button mobile */}
+                {/* Wishlist + Cart buttons mobile */}
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -345,17 +376,25 @@ export default function Navbar() {
                     delay: (categories.length + quickLinks.length) * 0.05 + 0.05,
                     duration: 0.25,
                   }}
-                  className="pt-3"
+                  className="pt-3 flex gap-2"
                 >
+                  <Link
+                    href="/wishlist"
+                    onClick={() => setIsOpen(false)}
+                    className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-3.5 rounded-xl text-sm font-semibold transition-all shadow-lg"
+                  >
+                    <Heart className="w-4 h-4" />
+                    Favoritos
+                  </Link>
                   <button
                     onClick={() => {
                       setIsCartOpen(true);
                       setIsOpen(false);
                     }}
-                    className="flex items-center justify-center gap-2 bg-primary-800 hover:bg-primary-900 text-white w-full py-3.5 rounded-xl text-sm font-semibold transition-all shadow-lg"
+                    className="flex-1 flex items-center justify-center gap-2 bg-primary-800 hover:bg-primary-900 text-white py-3.5 rounded-xl text-sm font-semibold transition-all shadow-lg"
                   >
-                    <MessageCircle className="w-4 h-4" />
-                    Ver Carrito
+                    <ShoppingCart className="w-4 h-4" />
+                    Carrito
                   </button>
                 </motion.div>
 

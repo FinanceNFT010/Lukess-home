@@ -28,18 +28,18 @@ export default function Footer() {
             <p className="text-white/90">
               Suscríbete y obtén 10% de descuento en tu primera compra
             </p>
-            <form onSubmit={handleNewsletterSubmit} className="flex gap-3 max-w-md mx-auto">
+            <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tucorreo@ejemplo.com"
-                className="flex-1 px-4 py-3 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-white"
+                className="flex-1 px-4 py-3 rounded-lg text-gray-900 border-2 border-white/30 focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
                 required
               />
               <button
                 type="submit"
-                className="bg-primary-800 px-6 py-3 rounded-lg font-bold hover:bg-primary-900 transition-colors flex items-center gap-2 shadow-lg"
+                className="w-full sm:w-auto bg-primary-800 px-6 py-3 rounded-lg font-bold hover:bg-primary-900 transition-colors flex items-center justify-center gap-2 shadow-lg whitespace-nowrap"
               >
                 <Send className="w-5 h-5" />
                 Suscribir
