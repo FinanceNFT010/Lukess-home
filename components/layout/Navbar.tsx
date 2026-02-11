@@ -131,20 +131,25 @@ export default function Navbar() {
     if (searchQuery.trim()) {
       const searchUrl = `/?busqueda=${encodeURIComponent(searchQuery)}#catalogo`;
       
+      // Cerrar menú móvil si está abierto
+      setIsOpen(false);
+      
       if (pathname !== '/') {
         // Si no estamos en la home, navegar
         router.push(searchUrl);
       } else {
         // Si ya estamos en la home, actualizar URL y hacer scroll
-        window.history.pushState(null, '', searchUrl);
-        const element = document.getElementById('catalogo');
-        if (element) {
-          const navbarHeight = 80;
-          const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
-          window.scrollTo({ top, behavior: 'smooth' });
-        }
-        // Disparar evento para que el catálogo detecte el cambio
-        window.dispatchEvent(new Event('searchUpdate'));
+        setTimeout(() => {
+          window.history.pushState(null, '', searchUrl);
+          const element = document.getElementById('catalogo');
+          if (element) {
+            const navbarHeight = 80;
+            const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
+            window.scrollTo({ top, behavior: 'smooth' });
+          }
+          // Disparar evento para que el catálogo detecte el cambio
+          window.dispatchEvent(new Event('searchUpdate'));
+        }, 100);
       }
       setSearchQuery('');
     }
