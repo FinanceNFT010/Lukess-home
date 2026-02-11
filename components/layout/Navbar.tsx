@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Menu, X, MessageCircle, ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Menu, X, MessageCircle, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import Container from "@/components/ui/Container";
 import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CheckoutModal } from "@/components/cart/CheckoutModal";
-import { SearchBar } from "@/components/search/SearchBar";
-
-/* ───────── Constantes ───────── */
 
 const WHATSAPP_URL =
   "https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20me%20interesa%20conocer%20sus%20productos";
@@ -18,119 +16,99 @@ const WHATSAPP_URL =
 const categories = [
   {
     name: 'NUEVO',
-    href: '#catalogo?filter=nuevo',
-    featured: [
-      { name: 'Recién llegados', href: '#catalogo?filter=nuevo' },
-      { name: 'Ofertas de semana', href: '#catalogo?filter=descuento' },
-    ]
+    href: '/#catalogo',
+    filter: 'nuevo',
   },
   {
     name: 'CAMISAS',
-    href: '#catalogo?filter=camisas',
+    href: '/#catalogo',
+    filter: 'camisas',
     subcategories: [
-      { name: 'Columbia', href: '#catalogo?filter=camisas&subcategory=Columbia' },
-      { name: 'Manga larga', href: '#catalogo?filter=camisas&subcategory=Manga larga' },
-      { name: 'Manga corta', href: '#catalogo?filter=camisas&subcategory=Manga corta' },
-      { name: 'Elegantes', href: '#catalogo?filter=camisas&subcategory=Elegantes' },
+      { name: 'Columbia', filter: 'camisas-columbia' },
+      { name: 'Manga larga', filter: 'camisas-manga-larga' },
+      { name: 'Manga corta', filter: 'camisas-manga-corta' },
+      { name: 'Elegantes', filter: 'camisas-elegantes' },
     ]
   },
   {
     name: 'PANTALONES',
-    href: '#catalogo?filter=pantalones',
+    href: '/#catalogo',
+    filter: 'pantalones',
     subcategories: [
-      { name: 'Oversize', href: '#catalogo?filter=pantalones&subcategory=Oversize' },
-      { name: 'Jeans', href: '#catalogo?filter=pantalones&subcategory=Jeans' },
-      { name: 'Elegantes', href: '#catalogo?filter=pantalones&subcategory=Elegantes' },
+      { name: 'Oversize', filter: 'pantalones-oversize' },
+      { name: 'Jeans', filter: 'pantalones-jeans' },
+      { name: 'Elegantes', filter: 'pantalones-elegantes' },
     ]
   },
   {
     name: 'BLAZERS',
-    href: '#catalogo?filter=blazers',
+    href: '/#catalogo',
+    filter: 'blazers',
   },
   {
     name: 'ACCESORIOS',
-    href: '#catalogo?filter=accesorios',
+    href: '/#catalogo',
+    filter: 'accesorios',
     subcategories: [
-      { name: 'Sombreros', href: '#catalogo?filter=accesorios&subcategory=Sombreros' },
-      { name: 'Gorras', href: '#catalogo?filter=accesorios&subcategory=Gorras' },
-      { name: 'Cinturones', href: '#catalogo?filter=accesorios&subcategory=Cinturones' },
-      { name: 'Billeteras', href: '#catalogo?filter=accesorios&subcategory=Billeteras' },
+      { name: 'Sombreros', filter: 'accesorios-sombreros' },
+      { name: 'Gorras', filter: 'accesorios-gorras' },
+      { name: 'Cinturones', filter: 'accesorios-cinturones' },
+      { name: 'Billeteras', filter: 'accesorios-billeteras' },
     ]
   },
 ];
 
 const quickLinks = [
-  { href: "#ubicacion", label: "Ubicación" },
-  { href: "#contacto", label: "Contacto" },
+  { href: "/#ubicacion", label: "Ubicación" },
+  { href: "/#contacto", label: "Contacto" },
 ];
-
-/* ───────── Componente ───────── */
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState("#inicio");
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const pathname = usePathname();
+  const router = useRouter();
 
-  /* ── Detectar scroll para background ── */
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  /* ── Detectar sección activa vía IntersectionObserver ── */
-  useEffect(() => {
-    const allLinks = [...categories.map(c => c.href), ...quickLinks.map(l => l.href)];
-    const sectionIds = [...new Set(allLinks)].map((l) => l.replace("#", ""));
-    const observers: IntersectionObserver[] = [];
-
-    sectionIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            setActiveSection(`#${id}`);
-          }
-        },
-        { rootMargin: "-40% 0px -55% 0px" }
-      );
-
-      observer.observe(el);
-      observers.push(observer);
-    });
-
-    return () => observers.forEach((o) => o.disconnect());
-  }, []);
-
-  /* ── Smooth scroll programático ── */
-  const scrollToSection = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-      e.preventDefault();
-      setIsOpen(false);
-
-      const id = href.replace("#", "");
-      const el = document.getElementById(id);
-      if (!el) return;
-
-      const navbarHeight = 80;
-      const top = el.getBoundingClientRect().top + window.scrollY - navbarHeight;
-
-      window.scrollTo({ top, behavior: "smooth" });
-    },
-    []
-  );
-
-  /* ── Bloquear scroll del body cuando drawer abierto ── */
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    setIsOpen(false);
+    
+    if (pathname !== '/') {
+      router.push(href);
+    } else {
+      const id = href.replace('/#', '');
+      const element = document.getElementById(id);
+      if (element) {
+        const navbarHeight = 80;
+        const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/?busqueda=${encodeURIComponent(searchQuery)}#catalogo`);
+      setSearchQuery('');
+    }
+  };
 
   return (
     <>
@@ -143,11 +121,10 @@ export default function Navbar() {
       >
         <Container>
           <div className="flex items-center justify-between h-[72px] md:h-20 gap-4">
-            {/* ── Logo ── */}
-            <a
-              href="#inicio"
-              onClick={(e) => scrollToSection(e, "#inicio")}
-              className="flex items-center gap-1.5 shrink-0"
+            {/* Logo - ARREGLADO */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 shrink-0 hover:opacity-80 transition-opacity"
             >
               <span className="text-xl sm:text-2xl md:text-[28px] font-extrabold tracking-tight text-primary-800">
                 LUKESS
@@ -158,55 +135,32 @@ export default function Navbar() {
               <span className="hidden sm:inline-block text-[9px] ml-1.5 px-1.5 py-0.5 rounded border text-gray-600 border-gray-300">
                 Desde 2014
               </span>
-            </a>
+            </Link>
 
-            {/* ── Desktop Mega Menu ── */}
+            {/* Desktop Mega Menu */}
             <div className="hidden lg:flex items-center gap-1 flex-1 justify-center">
               {categories.map((category) => (
                 <div key={category.name} className="relative group">
-                  <a
+                  <Link
                     href={category.href}
-                    onClick={(e) => scrollToSection(e, category.href)}
+                    onClick={(e) => handleNavClick(e, category.href)}
                     className="flex items-center gap-1 text-sm font-semibold text-gray-800 hover:text-primary-800 transition-colors px-3 py-2"
                   >
                     {category.name}
-                    {(category.subcategories || category.featured) && (
-                      <ChevronDown className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </a>
+                  </Link>
                   
-                  {/* Mega menu dropdown */}
                   {category.subcategories && (
                     <div className="absolute left-0 top-full mt-2 w-48 bg-white shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 border border-gray-100">
                       <div className="py-3 px-4">
                         {category.subcategories.map((sub) => (
-                          <a
+                          <Link
                             key={sub.name}
-                            href={sub.href}
-                            onClick={(e) => scrollToSection(e, sub.href)}
+                            href={`/#catalogo?filter=${sub.filter}`}
+                            onClick={(e) => handleNavClick(e, `/#catalogo?filter=${sub.filter}`)}
                             className="block py-2 text-sm text-gray-700 hover:text-primary-800 hover:translate-x-1 transition-all"
                           >
                             {sub.name}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Featured dropdown para NUEVO */}
-                  {category.featured && (
-                    <div className="absolute left-0 top-full mt-2 w-56 bg-white shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 border border-gray-100">
-                      <div className="py-3 px-4">
-                        {category.featured.map((item) => (
-                          <a
-                            key={item.name}
-                            href={item.href}
-                            onClick={(e) => scrollToSection(e, item.href)}
-                            className="block py-2 text-sm font-medium text-gray-700 hover:text-primary-800 hover:translate-x-1 transition-all"
-                          >
-                            <span className="inline-block w-2 h-2 rounded-full bg-accent-400 mr-2"></span>
-                            {item.name}
-                          </a>
+                          </Link>
                         ))}
                       </div>
                     </div>
@@ -217,30 +171,39 @@ export default function Navbar() {
               {/* Quick Links */}
               <div className="h-5 w-px bg-gray-200 mx-2"></div>
               {quickLinks.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
-                  onClick={(e) => scrollToSection(e, link.href)}
+                  onClick={(e) => handleNavClick(e, link.href)}
                   className="text-sm font-medium text-gray-700 hover:text-primary-800 transition-colors px-3 py-2"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </div>
 
-            {/* ── Acciones derecha ── */}
+            {/* Acciones derecha */}
             <div className="flex items-center gap-3">
-              {/* SearchBar (Desktop) */}
-              <div className="hidden lg:block">
-                <SearchBar />
-              </div>
+              {/* Buscador Desktop - ARREGLADO */}
+              <form onSubmit={handleSearch} className="hidden lg:block">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar..."
+                    className="w-48 pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-600 focus:outline-none transition-colors"
+                  />
+                </div>
+              </form>
 
-              {/* Cart Button - Desktop */}
+              {/* Cart Button */}
               <div className="hidden lg:block">
                 <CartButton onClick={() => setIsCartOpen(true)} />
               </div>
 
-              {/* WhatsApp - Icono solo en mobile, completo en desktop */}
+              {/* WhatsApp */}
               <a
                 href={WHATSAPP_URL}
                 target="_blank"
@@ -277,7 +240,7 @@ export default function Navbar() {
           </div>
         </Container>
 
-        {/* ── Drawer mobile ── */}
+        {/* Drawer mobile */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -288,7 +251,6 @@ export default function Navbar() {
               className="lg:hidden bg-white border-t border-gray-100 overflow-hidden"
             >
               <div className="px-6 py-5 space-y-1">
-                {/* Categories */}
                 {categories.map((category, i) => (
                   <motion.div
                     key={category.name}
@@ -300,29 +262,25 @@ export default function Navbar() {
                       ease: "easeOut" as const,
                     }}
                   >
-                    <a
+                    <Link
                       href={category.href}
-                      onClick={(e) => scrollToSection(e, category.href)}
+                      onClick={(e) => handleNavClick(e, category.href)}
                       className="flex items-center justify-between py-3 px-4 rounded-xl text-base font-semibold text-gray-800 hover:text-primary-800 hover:bg-gray-50 transition-all duration-200"
                     >
                       <span>{category.name}</span>
-                      {(category.subcategories || category.featured) && (
-                        <ChevronDown className="w-4 h-4 opacity-60" />
-                      )}
-                    </a>
+                    </Link>
                     
-                    {/* Subcategories mobile */}
                     {category.subcategories && (
                       <div className="ml-4 mt-1 space-y-1">
                         {category.subcategories.map((sub) => (
-                          <a
+                          <Link
                             key={sub.name}
-                            href={sub.href}
-                            onClick={(e) => scrollToSection(e, sub.href)}
+                            href={`/#catalogo?filter=${sub.filter}`}
+                            onClick={(e) => handleNavClick(e, `/#catalogo?filter=${sub.filter}`)}
                             className="block py-2 px-4 text-sm text-gray-600 hover:text-primary-800 transition-colors"
                           >
                             {sub.name}
-                          </a>
+                          </Link>
                         ))}
                       </div>
                     )}
@@ -344,16 +302,40 @@ export default function Navbar() {
                       ease: "easeOut" as const,
                     }}
                   >
-                    <a
+                    <Link
                       href={link.href}
-                      onClick={(e) => scrollToSection(e, link.href)}
+                      onClick={(e) => handleNavClick(e, link.href)}
                       className="flex items-center gap-3 py-3 px-4 rounded-xl text-base font-medium text-gray-700 hover:text-primary-800 hover:bg-gray-50 transition-all duration-200"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                       {link.label}
-                    </a>
+                    </Link>
                   </motion.div>
                 ))}
+
+                {/* Mobile search */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: (categories.length + quickLinks.length) * 0.05,
+                    duration: 0.25,
+                  }}
+                  className="pt-3"
+                >
+                  <form onSubmit={handleSearch}>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Buscar productos..."
+                        className="w-full pl-9 pr-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-primary-600 focus:outline-none"
+                      />
+                    </div>
+                  </form>
+                </motion.div>
 
                 {/* Cart Button mobile */}
                 <motion.div

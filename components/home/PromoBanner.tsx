@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const promos = [
   {
@@ -10,7 +11,8 @@ const promos = [
     title: '20% OFF en Camisas Columbia',
     subtitle: 'Solo por tiempo limitado',
     cta: 'Comprar ahora',
-    href: '#catalogo?filter=camisas&subcategory=Columbia',
+    href: '/#catalogo',
+    filter: 'camisas-columbia',
     bg: 'linear-gradient(135deg, #1A1A1A 0%, #8B7355 100%)',
     textColor: 'white',
   },
@@ -19,7 +21,8 @@ const promos = [
     title: 'Nueva Colección Primavera',
     subtitle: 'Blazers desde Bs 450',
     cta: 'Ver colección',
-    href: '#catalogo?filter=blazers',
+    href: '/#catalogo',
+    filter: 'blazers',
     bg: 'linear-gradient(135deg, #D4A574 0%, #8B7355 100%)',
     textColor: 'white',
   },
@@ -28,7 +31,8 @@ const promos = [
     title: 'Envío Gratis',
     subtitle: 'En compras mayores a Bs 300',
     cta: 'Más información',
-    href: '#contacto',
+    href: '/#contacto',
+    filter: null,
     bg: 'linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%)',
     textColor: 'white',
   },
@@ -36,6 +40,7 @@ const promos = [
 
 export function PromoBanner() {
   const [current, setCurrent] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -46,6 +51,25 @@ export function PromoBanner() {
 
   const goToNext = () => setCurrent((current + 1) % promos.length)
   const goToPrev = () => setCurrent((current - 1 + promos.length) % promos.length)
+
+  const handlePromoClick = (e: React.MouseEvent, promo: typeof promos[0]) => {
+    e.preventDefault()
+    const id = promo.href.replace('/#', '')
+    const element = document.getElementById(id)
+    
+    if (element) {
+      const navbarHeight = 80
+      const top = element.getBoundingClientRect().top + window.scrollY - navbarHeight
+      window.scrollTo({ top, behavior: 'smooth' })
+      
+      // Aplicar filtro si existe
+      if (promo.filter) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('applyPromoFilter', { detail: promo.filter }))
+        }, 500)
+      }
+    }
+  }
 
   return (
     <div className="relative h-[400px] md:h-[500px] overflow-hidden rounded-2xl mb-12">
@@ -71,6 +95,7 @@ export function PromoBanner() {
             </p>
             <Link
               href={promos[current].href}
+              onClick={(e) => handlePromoClick(e, promos[current])}
               className="inline-block bg-white text-primary-800 px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg"
             >
               {promos[current].cta}
