@@ -25,6 +25,7 @@ export interface Product {
   }
   inventory?: {
     quantity: number
+    reserved_qty?: number
     location_id: string
     locations?: {
       name: string

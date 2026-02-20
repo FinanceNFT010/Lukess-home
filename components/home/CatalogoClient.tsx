@@ -321,9 +321,12 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     return ['Todos', ...standardColors.filter(c => availableColors.has(c))]
   }, [initialProducts])
 
-  // Calcular stock total
+  // Calcular stock disponible (quantity - reserved_qty para reflejar reservas activas)
   const getTotalStock = useCallback((product: Product): number => {
-    return product.inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0
+    return product.inventory?.reduce(
+      (sum, inv) => sum + Math.max(0, inv.quantity - (inv.reserved_qty ?? 0)),
+      0
+    ) || 0
   }, [])
 
   // Filtrar y ordenar productos con todos los filtros

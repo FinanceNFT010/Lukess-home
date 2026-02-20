@@ -24,6 +24,7 @@ export default async function Home() {
         categories!inner(name),
         inventory(
           quantity,
+          reserved_qty,
           location_id,
           locations(name)
         )
