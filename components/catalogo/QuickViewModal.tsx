@@ -62,6 +62,14 @@ export function QuickViewModal({
   const isOutOfStock = stock === 0
   const discount = getDiscount(product)
   const priceWithDiscount = getPriceWithDiscount(product)
+  const MIN_STOCK = 5
+  const needsSize = !!(product.sizes && product.sizes.length > 0)
+  const addToCartDisabled = isOutOfStock || (needsSize && !selectedSize)
+  const addToCartLabel = isOutOfStock
+    ? 'Sin Stock'
+    : needsSize && !selectedSize
+      ? 'Selecciona una talla'
+      : 'Agregar al Carrito'
   
   // Obtener imágenes (máximo 3)
   const images = product.images && product.images.length > 0 
@@ -351,17 +359,22 @@ export function QuickViewModal({
                         <Ruler className="w-4 h-4 text-primary-600" />
                         Talla {product.sizes.length > 0 && <span className="text-red-500">*</span>}
                       </label>
+                      {isOutOfStock && (
+                        <span className="inline-block mb-2 text-red-400 text-xs font-bold uppercase tracking-wider">
+                          ❌ Sin stock actualmente
+                        </span>
+                      )}
                       <div className="flex flex-wrap gap-2">
                         {product.sizes.map((size) => (
                           <button
                             key={size}
-                            onClick={() => setSelectedSize(size)}
+                            onClick={() => !isOutOfStock && setSelectedSize(size)}
                             disabled={isOutOfStock}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all border-2 min-w-[60px] ${
                               selectedSize === size
                                 ? 'border-primary-600 bg-primary-600 text-white shadow-md scale-105'
                                 : isOutOfStock
-                                  ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-40 line-through'
                                   : 'border-gray-300 bg-white text-gray-700 hover:border-primary-400 hover:bg-primary-50'
                             }`}
                           >
@@ -372,6 +385,15 @@ export function QuickViewModal({
                           </button>
                         ))}
                       </div>
+                      {isOutOfStock ? (
+                        <p className="text-red-400 text-xs mt-1">
+                          ❌ Sin stock — puedes consultar por WhatsApp cuándo vuelve
+                        </p>
+                      ) : stock <= MIN_STOCK ? (
+                        <p className="text-amber-400 text-xs mt-1">
+                          ⚠️ Pocas unidades disponibles
+                        </p>
+                      ) : null}
                     </div>
                   )}
 
@@ -380,15 +402,15 @@ export function QuickViewModal({
                     {/* Agregar al carrito */}
                     <button
                       onClick={handleAddToCart}
-                      disabled={isOutOfStock}
+                      disabled={addToCartDisabled}
                       className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-base font-bold transition-all duration-300 ${
-                        isOutOfStock
+                        addToCartDisabled
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'
                       }`}
                     >
                       <ShoppingCart className="w-5 h-5" />
-                      {isOutOfStock ? 'Sin Stock' : 'Agregar al Carrito'}
+                      {addToCartLabel}
                     </button>
 
                     {/* Ver detalles completos */}

@@ -50,6 +50,14 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   const stock = getTotalStock(product)
   const isOutOfStock = stock === 0
   const discount = getDiscount(product)
+  const MIN_STOCK = 5
+  const needsSize = !!(product.sizes && product.sizes.length > 0)
+  const addToCartDisabled = isOutOfStock || (needsSize && !selectedSize)
+  const addToCartLabel = isOutOfStock
+    ? 'Sin Stock'
+    : needsSize && !selectedSize
+      ? 'Selecciona una talla'
+      : 'Agregar al Carrito'
 
   const handleAddToCart = () => {
     if (isOutOfStock) {
@@ -78,12 +86,11 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
 
   const handleWhatsApp = () => {
     const message = encodeURIComponent(
-      `Hola! Estoy interesado en:\n\n` +
-      `📦 ${product.name}\n` +
+      `Hola! Me interesa este producto 👇\n` +
+      `*${product.name}*\n` +
       `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
-      `📏 Talla: ${selectedSize || 'A consultar'}\n` +
-      `🎨 Color: ${selectedColor || 'A consultar'}\n\n` +
-      `¿Tienen disponible?`
+      (selectedSize ? `📏 Talla: ${selectedSize}\n` : '') +
+      `¿Me pueden dar más información? 🙏`
     )
     window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
   }
@@ -225,21 +232,38 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                       Guía de tallas
                     </button>
                   </div>
+                  {isOutOfStock && (
+                    <span className="inline-block mb-2 text-red-400 text-xs font-bold uppercase tracking-wider">
+                      ❌ Sin stock actualmente
+                    </span>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {product.sizes.map((size) => (
                       <button
                         key={size}
-                        onClick={() => setSelectedSize(size)}
+                        onClick={() => !isOutOfStock && setSelectedSize(size)}
+                        disabled={isOutOfStock}
                         className={`px-5 py-2 rounded-lg font-semibold transition-all ${
-                          selectedSize === size
-                            ? 'bg-primary-600 text-white ring-2 ring-primary-300'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          isOutOfStock
+                            ? 'opacity-40 cursor-not-allowed line-through'
+                            : selectedSize === size
+                              ? 'bg-primary-600 text-white ring-2 ring-primary-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
                         {size}
                       </button>
                     ))}
                   </div>
+                  {isOutOfStock ? (
+                    <p className="text-red-400 text-xs mt-1">
+                      ❌ Sin stock — puedes consultar por WhatsApp cuándo vuelve
+                    </p>
+                  ) : stock <= MIN_STOCK ? (
+                    <p className="text-amber-400 text-xs mt-1">
+                      ⚠️ Pocas unidades disponibles
+                    </p>
+                  ) : null}
                 </div>
               )}
 
@@ -295,15 +319,15 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
               <div className="flex gap-4">
                 <button
                   onClick={handleAddToCart}
-                  disabled={isOutOfStock}
-                  className={`flex-1 py-4 rounded-xl font-bold text-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 ${
-                    isOutOfStock
+                  disabled={addToCartDisabled}
+                  className={`flex-1 py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 ${
+                    addToCartDisabled
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 shadow-lg'
+                      : 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 transform hover:scale-105 shadow-lg'
                   }`}
                 >
                   <ShoppingCart className="w-5 h-5" />
-                  {isOutOfStock ? 'Sin Stock' : 'Agregar al Carrito'}
+                  {addToCartLabel}
                 </button>
                 <button
                   onClick={handleWhatsApp}
