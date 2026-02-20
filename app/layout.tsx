@@ -101,9 +101,9 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/favicon.svg" />
       </head>
       <body className="font-sans">
-        <WishlistProvider>
-          <CartProvider>
-            <AuthProvider>
+        <AuthProvider>
+          <WishlistProvider>
+            <CartProvider>
               <a
                 href="#inicio"
                 className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-primary-500 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg"
@@ -120,9 +120,9 @@ export default function RootLayout({
                   duration: 1500,
                 }}
               />
-            </AuthProvider>
-          </CartProvider>
-        </WishlistProvider>
+            </CartProvider>
+          </WishlistProvider>
+        </AuthProvider>
       </body>
     </html>
   );

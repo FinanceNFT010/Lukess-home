@@ -1,15 +1,17 @@
 'use client'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useWishlist } from '@/lib/context/WishlistContext'
+import { useAuth } from '@/lib/context/AuthContext'
 import { Product } from '@/lib/types'
 import Container from '@/components/ui/Container'
-import { Heart, ShoppingCart, Trash2, ExternalLink, MessageCircle, Share2, Check } from 'lucide-react'
+import { Heart, ShoppingCart, Trash2, ExternalLink, MessageCircle, Share2, Check, LogIn } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
 import { ProductBadges } from '@/components/catalogo/ProductBadges'
+import { AuthModal } from '@/components/auth/AuthModal'
 
 interface WishlistClientProps {
   allProducts: Product[]
@@ -17,7 +19,9 @@ interface WishlistClientProps {
 
 export function WishlistClient({ allProducts }: WishlistClientProps) {
   const { wishlist, removeFromWishlist, clearWishlist } = useWishlist()
+  const { isLoggedIn, customerName } = useAuth()
   const { addToCart } = useCart()
+  const [authModalOpen, setAuthModalOpen] = useState(false)
 
   // Filtrar productos que están en la wishlist
   const wishlistProducts = useMemo(() => {
@@ -104,6 +108,47 @@ export function WishlistClient({ allProducts }: WishlistClientProps) {
   return (
     <section className="min-h-screen py-24 bg-gray-50">
       <Container>
+        {/* Banner de estado de sesión */}
+        <div className="mb-6">
+          {isLoggedIn ? (
+            <div className="flex items-start gap-3 bg-[#1a1a1a] border border-[#c89b6e]/30 rounded-xl px-5 py-4">
+              <Heart className="w-5 h-5 text-[#c89b6e] fill-current mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Tus favoritos guardados en tu cuenta
+                  {customerName && (
+                    <span className="text-[#c89b6e]"> · {customerName}</span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Se sincronizan en todos tus dispositivos
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4 bg-[#1a1a1a] border border-gray-700 rounded-xl px-5 py-4">
+              <div className="flex items-start gap-3">
+                <Heart className="w-5 h-5 text-red-400 fill-current mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Tus favoritos (sesión actual)
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Inicia sesión para guardarlos permanentemente
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#c89b6e] hover:bg-[#b8895e] text-white text-xs font-semibold rounded-full transition-all shrink-0 hover:scale-105"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                Iniciar sesión
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -294,6 +339,12 @@ export function WishlistClient({ allProducts }: WishlistClientProps) {
           </div>
         )}
       </Container>
+
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        mode="login"
+      />
     </section>
   )
 }

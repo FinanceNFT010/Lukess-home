@@ -1,7 +1,7 @@
 # Lukess Home Landing — Active Context
 
 ## Current Block
-**3b** — Wishlist sync: localStorage → Supabase para usuarios logueados
+**3c** — Checkout security + QR improvements + Libélula placeholder
 
 ## Completed Blocks
 - **3a** ✅ Customer Auth: Schema + Checkout upgrade + Order tracking (20 feb 2026)
@@ -14,19 +14,30 @@
   - ⚠️ PENDIENTE: Ejecutar migraciones SQL en Supabase Dashboard
     (ver SQL en BLOCK_3a_MIGRATIONS.sql o en el historial del chat)
 
+- **3b** ✅ Wishlist sync: localStorage → Supabase (20 feb 2026)
+  - Nueva tabla: `wishlists` (user_id, product_id, RLS habilitado)
+  - lib/services/wishlistService.ts: get, add, remove, merge, clear
+  - WishlistContext: sync con Supabase para usuarios logueados, localStorage para guests
+  - Merge automático de localStorage → Supabase al iniciar sesión
+  - AuthModal: Google OAuth activo (eliminado guard "Próximamente"), spinner "Redirigiendo a Google..."
+  - WishlistClient: banner "guardados en tu cuenta" (logueado) / "sesión actual + botón login" (guest)
+  - layout.tsx: AuthProvider ahora envuelve WishlistProvider (orden correcto)
+  - ⚠️ PENDIENTE: Ejecutar migración SQL en Supabase Dashboard
+    (ver supabase/migrations/03b_wishlist_sync.sql)
+
 ## Project URLs
 - Landing: https://lukess-home.vercel.app
 - Supabase (compartido): https://supabase.com/dashboard/project/lrcggpdgrqltqbxqnjgh
 
 ## Pending Blocks (Landing)
-3b → Wishlist sync: localStorage → Supabase para usuarios logueados
+3c → Checkout security + QR improvements + Libélula placeholder
 9  → GA4 + SEO dinámico + pulido final
 
 ## Important Notes
 - Mismo Supabase que el sistema de inventario
 - published_to_landing = true requerido para que productos aparezcan
-- Wishlist actualmente en localStorage — migrar a Supabase en bloque 3b
+- Wishlist: Supabase para logueados, localStorage para guests
 - Carrito: localStorage (no necesita auth)
-- Google OAuth: requiere configuración en Supabase Dashboard → Auth → Providers → Google
+- Google OAuth: configurado en Supabase Dashboard → Auth → Providers → Google
 - Auth callback: /auth/callback (ya creado)
 - NEXT_PUBLIC_SITE_URL no está en .env.local — agregar para OAuth correcto

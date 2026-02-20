@@ -1,62 +1,128 @@
 'use client'
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
+import { useAuth } from '@/lib/context/AuthContext'
+import { wishlistService } from '@/lib/services/wishlistService'
 
 interface WishlistContextType {
-  wishlist: string[] // Array de product IDs
-  addToWishlist: (productId: string) => void
-  removeFromWishlist: (productId: string) => void
+  wishlist: string[]
+  addToWishlist: (productId: string) => Promise<void>
+  removeFromWishlist: (productId: string) => Promise<void>
   isInWishlist: (productId: string) => boolean
-  clearWishlist: () => void
+  clearWishlist: () => Promise<void>
   wishlistCount: number
+}
+
+const WISHLIST_KEY = 'lukess-wishlist'
+
+const getLocalWishlist = (): string[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    return JSON.parse(localStorage.getItem(WISHLIST_KEY) ?? '[]')
+  } catch {
+    return []
+  }
+}
+
+const saveLocalWishlist = (ids: string[]) => {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(WISHLIST_KEY, JSON.stringify(ids))
+}
+
+const clearLocalWishlist = () => {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(WISHLIST_KEY)
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined)
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
+  const { user, isLoggedIn } = useAuth()
   const [wishlist, setWishlist] = useState<string[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
+  const prevUserIdRef = useRef<string | null>(null)
 
-  // Cargar wishlist desde localStorage al montar
+  // Sync wishlist when auth state changes
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lukess-wishlist')
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved)
-          setWishlist(Array.isArray(parsed) ? parsed : [])
-        } catch (error) {
-          console.error('Error parsing wishlist:', error)
-          setWishlist([])
-        }
+    const currentUserId = user?.id ?? null
+
+    if (isLoggedIn && user) {
+      if (prevUserIdRef.current !== currentUserId) {
+        // New login: merge localStorage into Supabase
+        const localIds = getLocalWishlist()
+        wishlistService
+          .mergeLocalWishlist(user.id, localIds)
+          .then((mergedIds) => {
+            setWishlist(mergedIds)
+            clearLocalWishlist()
+          })
+          .catch((err) => {
+            console.error('Error merging wishlist:', err)
+            // Fall back to local items if Supabase fails
+            setWishlist(localIds)
+          })
       }
-      setIsLoaded(true)
+    } else {
+      // Guest or logged out: use localStorage
+      if (prevUserIdRef.current !== null) {
+        // Just logged out — clear in-memory wishlist
+        setWishlist([])
+      } else {
+        // Initial load as guest
+        setWishlist(getLocalWishlist())
+      }
     }
-  }, [])
 
-  // Guardar en localStorage cada vez que cambie
-  useEffect(() => {
-    if (isLoaded && typeof window !== 'undefined') {
-      localStorage.setItem('lukess-wishlist', JSON.stringify(wishlist))
+    prevUserIdRef.current = currentUserId
+  }, [isLoggedIn, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addToWishlist = async (productId: string) => {
+    if (wishlist.includes(productId)) return
+
+    if (isLoggedIn && user) {
+      setWishlist((prev) => [...prev, productId])
+      try {
+        await wishlistService.addToWishlist(user.id, productId)
+      } catch (err) {
+        console.error('Error adding to wishlist:', err)
+        setWishlist((prev) => prev.filter((id) => id !== productId))
+      }
+    } else {
+      const updated = [...wishlist, productId]
+      setWishlist(updated)
+      saveLocalWishlist(updated)
     }
-  }, [wishlist, isLoaded])
+  }
 
-  const addToWishlist = (productId: string) => {
-    if (!wishlist.includes(productId)) {
-      setWishlist([...wishlist, productId])
+  const removeFromWishlist = async (productId: string) => {
+    if (isLoggedIn && user) {
+      setWishlist((prev) => prev.filter((id) => id !== productId))
+      try {
+        await wishlistService.removeFromWishlist(user.id, productId)
+      } catch (err) {
+        console.error('Error removing from wishlist:', err)
+        setWishlist((prev) => [...prev, productId])
+      }
+    } else {
+      const updated = wishlist.filter((id) => id !== productId)
+      setWishlist(updated)
+      saveLocalWishlist(updated)
     }
   }
 
-  const removeFromWishlist = (productId: string) => {
-    setWishlist(wishlist.filter(id => id !== productId))
+  const clearWishlist = async () => {
+    if (isLoggedIn && user) {
+      setWishlist([])
+      try {
+        await wishlistService.clearWishlist(user.id)
+      } catch (err) {
+        console.error('Error clearing wishlist:', err)
+      }
+    } else {
+      setWishlist([])
+      clearLocalWishlist()
+    }
   }
 
-  const isInWishlist = (productId: string): boolean => {
-    return wishlist.includes(productId)
-  }
-
-  const clearWishlist = () => {
-    setWishlist([])
-  }
+  const isInWishlist = (productId: string): boolean => wishlist.includes(productId)
 
   const wishlistCount = wishlist.length
 
