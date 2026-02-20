@@ -1,7 +1,7 @@
 # Lukess Home Landing — Active Context
 
 ## Current Block
-**3c** — Checkout security + QR improvements + Libélula placeholder
+**3d** — Transactional emails: order confirmation + admin notification
 
 ## Completed Blocks
 - **3a** ✅ Customer Auth: Schema + Checkout upgrade + Order tracking (20 feb 2026)
@@ -13,6 +13,18 @@
   - Navbar: botón Entrar / dropdown usuario logueado
   - ⚠️ PENDIENTE: Ejecutar migraciones SQL en Supabase Dashboard
     (ver SQL en BLOCK_3a_MIGRATIONS.sql o en el historial del chat)
+
+- **3c** ✅ Checkout security + QR improvements + Libélula placeholder (20 feb 2026)
+  - app/api/checkout/route.ts: validaciones server-side + anti-spam
+  - Honeypot field en formulario (campo 'website' oculto)
+  - Rate limiting en memoria: 3 por email / 5 por IP por hora
+  - Validaciones: nombre ≥3 chars, teléfono 7-8 dígitos, email, total > 0, items no vacío
+  - Orden creada con SERVICE_ROLE_KEY (no anon key) desde el servidor
+  - CheckoutModal: WhatsApp botón opcional (no automático)
+  - CheckoutModal: Card "Crear cuenta" con botón × explícito (no se auto-cierra)
+  - CheckoutModal: Botón "Seguir comprando" limpia carrito y cierra modal
+  - CheckoutModal: Selector de método de pago — QR activo, Libélula disabled+placeholder
+  - ⚠️ PENDIENTE: Agregar SUPABASE_SERVICE_ROLE_KEY a Vercel Environment Variables
 
 - **3b** ✅ Wishlist sync: localStorage → Supabase (20 feb 2026)
   - Nueva tabla: `wishlists` (user_id, product_id, RLS habilitado)
@@ -30,7 +42,7 @@
 - Supabase (compartido): https://supabase.com/dashboard/project/lrcggpdgrqltqbxqnjgh
 
 ## Pending Blocks (Landing)
-3c → Checkout security + QR improvements + Libélula placeholder
+3d → Transactional emails: order confirmation + admin notification
 9  → GA4 + SEO dinámico + pulido final
 
 ## Important Notes

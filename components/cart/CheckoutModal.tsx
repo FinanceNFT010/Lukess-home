@@ -1,9 +1,19 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { X, CheckCircle, AlertCircle, ShoppingBag, CreditCard, PartyPopper, Sparkles, User } from 'lucide-react'
+import {
+  X,
+  CheckCircle,
+  AlertCircle,
+  ShoppingBag,
+  CreditCard,
+  PartyPopper,
+  Sparkles,
+  User,
+  Lock,
+  MessageCircle,
+} from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
 import { useAuth } from '@/lib/context/AuthContext'
-import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
@@ -16,6 +26,7 @@ interface CheckoutModalProps {
 }
 
 type Step = 'form' | 'qr' | 'success'
+type PaymentMethod = 'qr' | 'libelula'
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const { cart, total, clearCart } = useCart()
@@ -25,19 +36,24 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [showAccountCard, setShowAccountCard] = useState(true)
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('qr')
+  const [whatsappMessage, setWhatsappMessage] = useState('')
 
   const [customerData, setCustomerData] = useState({
     name: '',
     phone: '',
     email: '',
+    website: '', // honeypot — bots lo llenan, humanos no lo ven
   })
   const [marketingConsent, setMarketingConsent] = useState(true)
   const [emailError, setEmailError] = useState('')
 
-  // Pre-fill from auth user
+  // Pre-fill desde cuenta autenticada
   useEffect(() => {
     if (isLoggedIn && user) {
       setCustomerData((prev) => ({
+        ...prev,
         name: prev.name || customerName || '',
         phone: prev.phone || user.user_metadata?.phone || '',
         email: prev.email || user.email || '',
@@ -45,13 +61,16 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     }
   }, [isLoggedIn, user, customerName])
 
-  // Reset cuando se cierra el modal
+  // Reset al cerrar el modal
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
         setStep('form')
         setShowConfetti(false)
         setEmailError('')
+        setShowAccountCard(true)
+        setSelectedPayment('qr')
+        setWhatsappMessage('')
       }, 300)
     }
   }, [isOpen])
@@ -86,76 +105,60 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setIsProcessing(true)
 
     try {
-      const supabase = createClient()
-
-      // 1. Upsert customer record
-      const { data: customer } = await supabase
-        .from('customers')
-        .upsert(
-          {
-            email: customerData.email,
-            name: customerData.name,
-            phone: customerData.phone,
-            marketing_consent: marketingConsent,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'email', ignoreDuplicates: false }
-        )
-        .select('id')
-        .single()
-
-      // 2. If marketing consent, upsert subscriber
-      if (marketingConsent) {
-        await supabase
-          .from('subscribers')
-          .upsert(
-            {
-              email: customerData.email,
-              name: customerData.name,
-              source: 'checkout',
-            },
-            { onConflict: 'email', ignoreDuplicates: true }
-          )
-      }
-
-      // 3. Create order
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          customer_id: customer?.id || null,
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          website: customerData.website, // honeypot
           customer_name: customerData.name,
-          customer_phone: customerData.phone,
+          customer_phone: customerData.phone.replace(/\s/g, ''),
           customer_email: customerData.email,
           marketing_consent: marketingConsent,
-          subtotal: total,
-          discount: 0,
-          total: total,
-          status: 'pending',
-          payment_method: 'qr',
-        })
-        .select()
-        .single()
+          total,
+          items: cart.map((item) => ({
+            product_id: item.product.id,
+            quantity: item.quantity,
+            unit_price: item.product.price,
+            size: item.size || null,
+            color: item.color || null,
+            subtotal: item.product.price * item.quantity,
+          })),
+        }),
+      })
 
-      if (orderError) throw orderError
+      const data = await response.json()
 
-      // 4. Create order items
-      const orderItems = cart.map((item) => ({
-        order_id: order.id,
-        product_id: item.product.id,
-        quantity: item.quantity,
-        unit_price: item.product.price,
-        size: item.size || null,
-        color: item.color || null,
-        subtotal: item.product.price * item.quantity,
-      }))
+      if (!response.ok) {
+        if (response.status === 429) {
+          toast.error(data.error || 'Demasiados pedidos. Intenta de nuevo en una hora.', {
+            position: 'bottom-center',
+          })
+        } else {
+          toast.error(data.error || 'Error al crear la orden', { position: 'bottom-center' })
+        }
+        return
+      }
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems)
+      const { orderId: newOrderId } = data
+      const shortId = newOrderId.slice(0, 8).toUpperCase()
 
-      if (itemsError) throw itemsError
+      setOrderId(newOrderId)
 
-      setOrderId(order.id)
+      const productList = cart
+        .map(
+          (item) =>
+            `• ${item.product.name} x${item.quantity}${item.size ? ` (${item.size})` : ''}${item.color ? ` - ${item.color}` : ''}`
+        )
+        .join('\n')
+
+      setWhatsappMessage(
+        encodeURIComponent(
+          `Hola! Realicé el pedido #${shortId} por Bs ${total.toFixed(2)}.\n\n` +
+            `🛍️ *Productos:*\n${productList}\n\n` +
+            `Ya realicé el pago por QR. ¿Pueden confirmar? 🙏`
+        )
+      )
+
       setStep('qr')
       toast.success('¡Orden creada! Procede al pago', {
         position: 'bottom-center',
@@ -173,33 +176,14 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const handlePaymentConfirmed = () => {
     setStep('success')
     setShowConfetti(true)
+  }
 
-    const productList = cart
-      .map(
-        (item) =>
-          `• ${item.product.name} x${item.quantity}${item.size ? ` (${item.size})` : ''}${item.color ? ` - ${item.color}` : ''}`
-      )
-      .join('\n')
-
-    const whatsappMessage = encodeURIComponent(
-      `🎉 ¡Hola! Realicé un pedido en Lukess Home\n\n` +
-        `📋 *Orden #${orderId.slice(0, 8).toUpperCase()}*\n\n` +
-        `🛍️ *Productos:*\n${productList}\n\n` +
-        `💰 *Total: Bs ${total.toFixed(2)}*\n\n` +
-        `✅ Ya realicé el pago por QR. ¿Pueden confirmar mi pedido?`
-    )
-
-    setTimeout(() => {
-      window.open(`https://wa.me/59176020369?text=${whatsappMessage}`, '_blank')
-    }, 1500)
-
-    setTimeout(() => {
-      clearCart()
-      onClose()
-      setStep('form')
-      setCustomerData({ name: '', phone: '', email: '' })
-      setShowConfetti(false)
-    }, 4000)
+  const handleContinueShopping = () => {
+    clearCart()
+    onClose()
+    setStep('form')
+    setCustomerData({ name: '', phone: '', email: '', website: '' })
+    setShowConfetti(false)
   }
 
   return (
@@ -254,9 +238,23 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
                 {/* Content */}
                 <div className="p-6">
+                  {/* ── STEP 1: FORMULARIO ── */}
                   {step === 'form' && (
                     <form onSubmit={handleSubmit} className="space-y-4">
-                      {/* Badge datos de cuenta */}
+                      {/* Honeypot — oculto para usuarios, visible para bots */}
+                      <input
+                        type="text"
+                        name="website"
+                        value={customerData.website}
+                        onChange={(e) =>
+                          setCustomerData({ ...customerData, website: e.target.value })
+                        }
+                        className="hidden"
+                        tabIndex={-1}
+                        autoComplete="off"
+                        aria-hidden="true"
+                      />
+
                       {isLoggedIn && (
                         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                           <User className="w-4 h-4 text-green-600 flex-shrink-0" />
@@ -316,14 +314,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               ? 'border-red-400 focus:border-red-500'
                               : 'border-gray-200 focus:border-primary-500'
                           }`}
-                          placeholder="tucorreo@gmail.com *"
+                          placeholder="tucorreo@gmail.com"
                         />
                         {emailError && (
                           <p className="mt-1 text-xs text-red-500">{emailError}</p>
                         )}
                       </div>
 
-                      {/* Total */}
                       <div className="bg-primary-50 p-4 rounded-lg border-2 border-primary-200">
                         <div className="flex items-center justify-between">
                           <span className="text-gray-700 font-semibold">Total a Pagar:</span>
@@ -333,7 +330,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </div>
                       </div>
 
-                      {/* Marketing consent */}
                       <label className="flex items-start gap-3 cursor-pointer group">
                         <div className="relative mt-0.5">
                           <input
@@ -358,6 +354,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     </form>
                   )}
 
+                  {/* ── STEP 2: PAGO QR ── */}
                   {step === 'qr' && (
                     <div className="text-center space-y-6">
                       <div className="bg-primary-50 p-4 rounded-lg border-2 border-primary-200">
@@ -367,6 +364,56 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </p>
                       </div>
 
+                      {/* Selector de método de pago */}
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-700 mb-3">
+                          Elige cómo pagar:
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Opción QR — seleccionable */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPayment('qr')}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              selectedPayment === 'qr'
+                                ? 'border-[#c89b6e] bg-[#fdf8f3] shadow-md'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="text-xl mb-1">📱</div>
+                            <p className="font-semibold text-sm text-gray-800">Pago con QR</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Yolo Pago</p>
+                            {selectedPayment === 'qr' && (
+                              <span className="inline-block mt-2 text-xs font-bold text-[#c89b6e] bg-[#c89b6e]/10 px-2 py-0.5 rounded-full">
+                                SELECCIONADO
+                              </span>
+                            )}
+                          </button>
+
+                          {/* Opción Libélula — deshabilitada, placeholder */}
+                          <div className="relative group">
+                            <div className="p-4 rounded-xl border-2 border-gray-200 text-left pointer-events-none opacity-50 bg-gray-50">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Lock className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-xl">💳</span>
+                              </div>
+                              <p className="font-semibold text-sm text-gray-600">Libélula</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Tarjeta / QR</p>
+                              <span className="inline-block mt-2 text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                Próximamente
+                              </span>
+                            </div>
+                            {/* Tooltip al hover sobre el wrapper */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center shadow-lg">
+                              Integración con Libélula próximamente. Acepta Visa, Mastercard, QR
+                              Bolivia y más.
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Contenido QR */}
                       <div>
                         <p className="text-gray-700 mb-4 font-semibold">
                           Escanea este QR con tu app de pagos
@@ -390,8 +437,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                       <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-lg">
                         <div className="flex items-start gap-3">
                           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-amber-800">
-                            Una vez realizado el pago, presiona "Ya Pagué" y te
+                          <p className="text-sm text-amber-800 text-left">
+                            Una vez realizado el pago, presiona &quot;Ya Pagué&quot; y te
                             contactaremos por WhatsApp para coordinar la entrega.
                           </p>
                         </div>
@@ -406,6 +453,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     </div>
                   )}
 
+                  {/* ── STEP 3: ÉXITO ── */}
                   {step === 'success' && (
                     <div className="text-center space-y-6 py-8 relative overflow-hidden">
                       <SparkleEffect isActive={showConfetti} />
@@ -462,44 +510,89 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </p>
                       </motion.div>
 
+                      {/* Confirmación + WhatsApp opcional */}
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.6 }}
-                        className="bg-green-50 border-2 border-green-200 p-5 rounded-xl"
+                        className="bg-green-50 border-2 border-green-200 p-5 rounded-xl text-left space-y-4"
                       >
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <Sparkles className="w-5 h-5 text-green-600" />
-                          <p className="text-green-800 font-bold text-lg">
-                            ¡Gracias por tu compra!
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="w-5 h-5 text-green-600" />
+                            <p className="text-green-800 font-bold text-base">
+                              ¡Gracias por tu compra!
+                            </p>
+                          </div>
+                          <p className="text-sm text-green-700">
+                            Revisaremos tu pago y te contactaremos a la brevedad por WhatsApp.
                           </p>
-                          <Sparkles className="w-5 h-5 text-green-600" />
                         </div>
-                        <p className="text-sm text-green-700">
-                          Te contactaremos por WhatsApp para coordinar la entrega
-                        </p>
-                        <p className="text-xs text-green-600 mt-2 animate-pulse">
-                          Abriendo WhatsApp...
-                        </p>
+
+                        <div className="border-t border-green-200 pt-4">
+                          <p className="text-sm text-gray-600 mb-3 font-medium">
+                            ¿Ya realizaste el pago QR?
+                          </p>
+                          <a
+                            href={`https://wa.me/59176020369?text=${whatsappMessage}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full bg-[#25d366] hover:bg-[#1fb855] text-white font-semibold py-3 rounded-xl transition-all shadow-md hover:shadow-lg text-sm"
+                          >
+                            <MessageCircle className="w-5 h-5" />
+                            Avisar por WhatsApp que ya pagué
+                          </a>
+                          <p className="text-xs text-gray-400 text-center mt-2">
+                            — o espera que te contactemos —
+                          </p>
+                        </div>
                       </motion.div>
 
-                      {/* Post-purchase auth CTA — solo para guests */}
-                      {!isLoggedIn && (
+                      {/* Botón "Seguir comprando" */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.75 }}
+                      >
+                        <button
+                          onClick={handleContinueShopping}
+                          className="w-full border-2 border-primary-300 text-primary-700 hover:bg-primary-50 font-semibold py-3 rounded-xl transition-all text-sm"
+                        >
+                          Seguir comprando
+                        </button>
+                      </motion.div>
+
+                      {/* Card "Crear cuenta" — solo para guests, se cierra con × */}
+                      {!isLoggedIn && showAccountCard && (
                         <motion.div
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.8 }}
-                          className="border-2 border-[#c89b6e]/40 bg-[#fdf8f3] rounded-xl p-5 text-left"
+                          transition={{ delay: 0.9 }}
+                          className="border-2 border-[#c89b6e]/40 bg-[#fdf8f3] rounded-xl p-5 text-left relative"
                         >
-                          <div className="flex items-center gap-2 mb-3">
+                          {/* Botón cerrar × */}
+                          <button
+                            onClick={() => setShowAccountCard(false)}
+                            className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            aria-label="Cerrar"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+
+                          <div className="flex items-center gap-2 mb-3 pr-6">
                             <User className="w-5 h-5 text-[#c89b6e]" />
                             <p className="font-bold text-gray-800 text-base">
                               Guarda tu historial de pedidos
                             </p>
                           </div>
+
+                          <p className="text-xs text-gray-500 mb-3">
+                            Con una cuenta gratuita puedes:
+                          </p>
+
                           <ul className="space-y-1 mb-4">
                             {[
-                              'Ver todos tus pedidos en un lugar',
+                              'Ver todos tus pedidos',
                               'Guardar tus favoritos',
                               'Checkout más rápido la próxima vez',
                             ].map((benefit) => (
@@ -512,6 +605,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               </li>
                             ))}
                           </ul>
+
                           <div className="flex gap-2">
                             <button
                               onClick={() => setIsAuthModalOpen(true)}
@@ -520,7 +614,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               Crear cuenta gratis
                             </button>
                             <button
-                              onClick={onClose}
+                              onClick={() => setShowAccountCard(false)}
                               className="flex-1 border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2.5 rounded-lg text-sm transition-all"
                             >
                               Saltar →
