@@ -47,8 +47,14 @@ export interface Order {
   customer_email?: string
   subtotal: number
   discount: number
+  shipping_cost?: number
   total: number
   status: string
   payment_method: string
+  delivery_method?: 'delivery' | 'pickup'
+  shipping_address?: string | null
+  shipping_reference?: string | null
+  pickup_location?: string | null
+  gps_coordinates?: string | null
   created_at: string
 }

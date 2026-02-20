@@ -11,6 +11,10 @@ import {
   User,
   Lock,
   MessageCircle,
+  MapPin,
+  Truck,
+  Store,
+  Navigation,
 } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
 import { useAuth } from '@/lib/context/AuthContext'
@@ -19,6 +23,7 @@ import Image from 'next/image'
 import toast from 'react-hot-toast'
 import { Confetti, SparkleEffect } from '@/components/ui/Confetti'
 import { AuthModal } from '@/components/auth/AuthModal'
+import { SHIPPING_CONFIG, PICKUP_LOCATIONS } from '@/lib/constants/shipping'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -27,6 +32,8 @@ interface CheckoutModalProps {
 
 type Step = 'form' | 'qr' | 'success'
 type PaymentMethod = 'qr' | 'libelula'
+type DeliveryMethod = 'delivery' | 'pickup'
+type GpsStatus = 'idle' | 'captured' | 'denied'
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const { cart, total, clearCart } = useCart()
@@ -48,6 +55,28 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   })
   const [marketingConsent, setMarketingConsent] = useState(true)
   const [emailError, setEmailError] = useState('')
+
+  // Delivery state
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('delivery')
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [shippingReference, setShippingReference] = useState('')
+  const [pickupLocation, setPickupLocation] = useState('')
+  const [gpsCoordinates, setGpsCoordinates] = useState('')
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>('idle')
+  const [shippingAddressError, setShippingAddressError] = useState('')
+  const [pickupLocationError, setPickupLocationError] = useState('')
+
+  // Shipping cost logic
+  const shippingCost =
+    deliveryMethod === 'pickup'
+      ? 0
+      : total >= SHIPPING_CONFIG.FREE_THRESHOLD
+        ? 0
+        : SHIPPING_CONFIG.FLAT_RATE
+
+  const orderTotal = total + shippingCost
+
+  const selectedPickup = PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)
 
   // Pre-fill desde cuenta autenticada
   useEffect(() => {
@@ -71,6 +100,14 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setShowAccountCard(true)
         setSelectedPayment('qr')
         setWhatsappMessage('')
+        setDeliveryMethod('delivery')
+        setShippingAddress('')
+        setShippingReference('')
+        setPickupLocation('')
+        setGpsCoordinates('')
+        setGpsStatus('idle')
+        setShippingAddressError('')
+        setPickupLocationError('')
       }, 300)
     }
   }, [isOpen])
@@ -79,6 +116,23 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     if (!email.trim()) return 'El email es obligatorio'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Email inválido'
     return ''
+  }
+
+  const handleGps = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('denied')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = `${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`
+        setGpsCoordinates(coords)
+        setGpsStatus('captured')
+      },
+      () => {
+        setGpsStatus('denied')
+      }
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,6 +156,21 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     }
     setEmailError('')
 
+    // Validate delivery fields
+    if (deliveryMethod === 'delivery') {
+      if (!shippingAddress.trim() || shippingAddress.trim().length < 10) {
+        setShippingAddressError('Ingresa una dirección válida (mínimo 10 caracteres)')
+        return
+      }
+      setShippingAddressError('')
+    } else {
+      if (!pickupLocation) {
+        setPickupLocationError('Selecciona un puesto de recogida')
+        return
+      }
+      setPickupLocationError('')
+    }
+
     setIsProcessing(true)
 
     try {
@@ -114,7 +183,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           customer_phone: customerData.phone.replace(/\s/g, ''),
           customer_email: customerData.email,
           marketing_consent: marketingConsent,
-          total,
+          subtotal: total,
+          shipping_cost: shippingCost,
+          total: orderTotal,
+          delivery_method: deliveryMethod,
+          shipping_address: deliveryMethod === 'delivery' ? shippingAddress.trim() : null,
+          shipping_reference:
+            deliveryMethod === 'delivery' ? shippingReference.trim() || null : null,
+          pickup_location: deliveryMethod === 'pickup' ? pickupLocation : null,
+          gps_coordinates: gpsCoordinates || null,
           items: cart.map((item) => ({
             product_id: item.product.id,
             quantity: item.quantity,
@@ -151,10 +228,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         )
         .join('\n')
 
+      const deliveryInfo =
+        deliveryMethod === 'delivery'
+          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}`
+          : `\n\n🏪 *Recojo en tienda:* ${PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)?.name ?? pickupLocation}`
+
       setWhatsappMessage(
         encodeURIComponent(
-          `Hola! Realicé el pedido #${shortId} por Bs ${total.toFixed(2)}.\n\n` +
-            `🛍️ *Productos:*\n${productList}\n\n` +
+          `Hola! Realicé el pedido #${shortId} por Bs ${orderTotal.toFixed(2)}.\n\n` +
+            `🛍️ *Productos:*\n${productList}${deliveryInfo}\n\n` +
             `Ya realicé el pago por QR. ¿Pueden confirmar? 🙏`
         )
       )
@@ -184,6 +266,12 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setStep('form')
     setCustomerData({ name: '', phone: '', email: '', website: '' })
     setShowConfetti(false)
+    setDeliveryMethod('delivery')
+    setShippingAddress('')
+    setShippingReference('')
+    setPickupLocation('')
+    setGpsCoordinates('')
+    setGpsStatus('idle')
   }
 
   return (
@@ -240,7 +328,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                 <div className="p-6">
                   {/* ── STEP 1: FORMULARIO ── */}
                   {step === 'form' && (
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-6">
                       {/* Honeypot — oculto para usuarios, visible para bots */}
                       <input
                         type="text"
@@ -255,77 +343,291 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         aria-hidden="true"
                       />
 
-                      {isLoggedIn && (
-                        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                          <User className="w-4 h-4 text-green-600 flex-shrink-0" />
-                          <span className="text-sm text-green-700 font-medium">
-                            ✓ Datos de tu cuenta
-                          </span>
+                      {/* ── SECTION A: Datos personales ── */}
+                      <div className="space-y-4">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          Datos personales
+                        </h3>
+
+                        {isLoggedIn && (
+                          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                            <User className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <span className="text-sm text-green-700 font-medium">
+                              ✓ Datos de tu cuenta
+                            </span>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Nombre Completo *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={customerData.name}
+                            onChange={(e) =>
+                              setCustomerData({ ...customerData, name: e.target.value })
+                            }
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
+                            placeholder="Juan Pérez"
+                          />
                         </div>
-                      )}
 
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Nombre Completo *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={customerData.name}
-                          onChange={(e) =>
-                            setCustomerData({ ...customerData, name: e.target.value })
-                          }
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
-                          placeholder="Juan Pérez"
-                        />
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Teléfono (WhatsApp) *
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={customerData.phone}
+                            onChange={(e) =>
+                              setCustomerData({ ...customerData, phone: e.target.value })
+                            }
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
+                            placeholder="76020369"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Email *
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            value={customerData.email}
+                            onChange={(e) => {
+                              setCustomerData({ ...customerData, email: e.target.value })
+                              if (emailError) setEmailError(validateEmail(e.target.value))
+                            }}
+                            onBlur={(e) => setEmailError(validateEmail(e.target.value))}
+                            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
+                              emailError
+                                ? 'border-red-400 focus:border-red-500'
+                                : 'border-gray-200 focus:border-primary-500'
+                            }`}
+                            placeholder="tucorreo@gmail.com"
+                          />
+                          {emailError && (
+                            <p className="mt-1 text-xs text-red-500">{emailError}</p>
+                          )}
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Teléfono (WhatsApp) *
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          value={customerData.phone}
-                          onChange={(e) =>
-                            setCustomerData({ ...customerData, phone: e.target.value })
-                          }
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
-                          placeholder="76020369"
-                        />
-                      </div>
+                      {/* ── SECTION B: Método de entrega ── */}
+                      <div className="space-y-4">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          ¿Cómo quieres recibir tu pedido?
+                        </h3>
 
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Email *
-                        </label>
-                        <input
-                          type="email"
-                          required
-                          value={customerData.email}
-                          onChange={(e) => {
-                            setCustomerData({ ...customerData, email: e.target.value })
-                            if (emailError) setEmailError(validateEmail(e.target.value))
-                          }}
-                          onBlur={(e) => setEmailError(validateEmail(e.target.value))}
-                          className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
-                            emailError
-                              ? 'border-red-400 focus:border-red-500'
-                              : 'border-gray-200 focus:border-primary-500'
-                          }`}
-                          placeholder="tucorreo@gmail.com"
-                        />
-                        {emailError && (
-                          <p className="mt-1 text-xs text-red-500">{emailError}</p>
+                        {/* Cards de método */}
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Envío a domicilio */}
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryMethod('delivery')}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              deliveryMethod === 'delivery'
+                                ? 'border-[#c89b6e] bg-[#fdf8f3] shadow-md'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <Truck
+                              className={`w-6 h-6 mb-2 ${deliveryMethod === 'delivery' ? 'text-[#c89b6e]' : 'text-gray-400'}`}
+                            />
+                            <p className="font-bold text-sm text-gray-800">Envío a domicilio</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {SHIPPING_CONFIG.CITY}
+                            </p>
+                            <div className="mt-2 space-y-0.5">
+                              {total >= SHIPPING_CONFIG.FREE_THRESHOLD ? (
+                                <p className="text-xs text-green-600 font-semibold">Gratis 🎉</p>
+                              ) : (
+                                <>
+                                  <p className="text-xs text-gray-500">
+                                    &lt; Bs {SHIPPING_CONFIG.FREE_THRESHOLD} → Bs{' '}
+                                    {SHIPPING_CONFIG.FLAT_RATE}
+                                  </p>
+                                  <p className="text-xs text-green-600">
+                                    ≥ Bs {SHIPPING_CONFIG.FREE_THRESHOLD} → Gratis
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* Recoger en tienda */}
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryMethod('pickup')}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              deliveryMethod === 'pickup'
+                                ? 'border-[#c89b6e] bg-[#fdf8f3] shadow-md'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <Store
+                              className={`w-6 h-6 mb-2 ${deliveryMethod === 'pickup' ? 'text-[#c89b6e]' : 'text-gray-400'}`}
+                            />
+                            <p className="font-bold text-sm text-gray-800">Recoger en tienda</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Mercado Mutualista</p>
+                            <p className="text-xs text-green-600 font-semibold mt-2">Gratis</p>
+                          </button>
+                        </div>
+
+                        {/* Campos condicionales: DELIVERY */}
+                        {deliveryMethod === 'delivery' && (
+                          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-[#c89b6e]" />
+                              <p className="text-sm font-semibold text-gray-700">
+                                Dirección de entrega
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                Dirección *
+                              </label>
+                              <input
+                                type="text"
+                                value={shippingAddress}
+                                onChange={(e) => {
+                                  setShippingAddress(e.target.value)
+                                  if (shippingAddressError) setShippingAddressError('')
+                                }}
+                                className={`w-full px-3 py-2.5 border-2 rounded-lg text-sm focus:outline-none transition-colors ${
+                                  shippingAddressError
+                                    ? 'border-red-400 focus:border-red-500'
+                                    : 'border-gray-200 focus:border-[#c89b6e]'
+                                }`}
+                                placeholder="Calle, número, zona/barrio"
+                              />
+                              {shippingAddressError && (
+                                <p className="mt-1 text-xs text-red-500">{shippingAddressError}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                Referencia
+                              </label>
+                              <input
+                                type="text"
+                                value={shippingReference}
+                                onChange={(e) => setShippingReference(e.target.value)}
+                                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-[#c89b6e] focus:outline-none"
+                                placeholder="Ej: Frente al parque, edificio azul"
+                              />
+                            </div>
+
+                            {/* GPS Button */}
+                            <div>
+                              <button
+                                type="button"
+                                onClick={handleGps}
+                                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border-2 transition-all ${
+                                  gpsStatus === 'captured'
+                                    ? 'border-green-400 bg-green-50 text-green-700'
+                                    : gpsStatus === 'denied'
+                                      ? 'border-red-300 bg-red-50 text-red-600'
+                                      : 'border-gray-300 hover:border-[#c89b6e] text-gray-600 hover:text-[#c89b6e]'
+                                }`}
+                              >
+                                <Navigation className="w-4 h-4" />
+                                {gpsStatus === 'captured'
+                                  ? '✓ Ubicación capturada'
+                                  : gpsStatus === 'denied'
+                                    ? 'Ingresa tu dirección manualmente'
+                                    : '📍 Compartir mi ubicación GPS'}
+                              </button>
+                              {gpsStatus === 'captured' && gpsCoordinates && (
+                                <p className="text-xs text-gray-400 mt-1 ml-1">{gpsCoordinates}</p>
+                              )}
+                              {gpsStatus === 'idle' && (
+                                <p className="text-xs text-gray-400 mt-1 ml-1">
+                                  Para entrega más precisa
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Campos condicionales: PICKUP */}
+                        {deliveryMethod === 'pickup' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Store className="w-4 h-4 text-[#c89b6e]" />
+                              <p className="text-sm font-semibold text-gray-700">
+                                Elige el puesto de recogida
+                              </p>
+                            </div>
+
+                            {pickupLocationError && (
+                              <p className="text-xs text-red-500 mb-1">{pickupLocationError}</p>
+                            )}
+
+                            {PICKUP_LOCATIONS.map((loc) => (
+                              <button
+                                key={loc.id}
+                                type="button"
+                                onClick={() => {
+                                  setPickupLocation(loc.id)
+                                  if (pickupLocationError) setPickupLocationError('')
+                                }}
+                                className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                                  pickupLocation === loc.id
+                                    ? 'border-[#c89b6e] bg-[#fdf8f3]'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm text-gray-800">
+                                      {loc.name} — {loc.aisle}, {loc.stall}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">{loc.hours}</p>
+                                  </div>
+                                  <a
+                                    href={loc.mapsUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs text-[#c89b6e] hover:underline whitespace-nowrap flex-shrink-0 mt-0.5"
+                                  >
+                                    {loc.mapsLabel}
+                                  </a>
+                                </div>
+                              </button>
+                            ))}
+
+                            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                              ⏰ Recuerda venir en horario de atención
+                            </p>
+                          </div>
                         )}
                       </div>
 
-                      <div className="bg-primary-50 p-4 rounded-lg border-2 border-primary-200">
-                        <div className="flex items-center justify-between">
+                      {/* ── Order Summary ── */}
+                      <div className="bg-primary-50 p-4 rounded-lg border-2 border-primary-200 space-y-2">
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <span>Subtotal:</span>
+                          <span>Bs {total.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Envío:</span>
+                          {shippingCost === 0 ? (
+                            <span className="text-green-600 font-semibold">Gratis 🎉</span>
+                          ) : (
+                            <span className="text-gray-700">Bs {shippingCost.toFixed(2)}</span>
+                          )}
+                        </div>
+                        <div className="border-t border-primary-200 pt-2 flex items-center justify-between">
                           <span className="text-gray-700 font-semibold">Total a Pagar:</span>
                           <span className="text-3xl font-bold text-primary-600">
-                            Bs {total.toFixed(2)}
+                            Bs {orderTotal.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -431,7 +733,12 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
                       <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-6 rounded-xl">
                         <p className="text-sm mb-2">Total a Pagar</p>
-                        <p className="text-4xl font-bold">Bs {total.toFixed(2)}</p>
+                        <p className="text-4xl font-bold">Bs {orderTotal.toFixed(2)}</p>
+                        {shippingCost > 0 && (
+                          <p className="text-xs mt-1.5 text-white/70">
+                            Incluye Bs {shippingCost.toFixed(2)} de envío
+                          </p>
+                        )}
                       </div>
 
                       <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-lg">
@@ -508,6 +815,61 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         <p className="text-2xl font-mono font-black text-primary-600 tracking-wider">
                           #{orderId.slice(0, 8).toUpperCase()}
                         </p>
+                      </motion.div>
+
+                      {/* Delivery info en confirmación */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                        className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 text-left"
+                      >
+                        {deliveryMethod === 'delivery' ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 mb-2">
+                              <MapPin className="w-4 h-4 text-[#c89b6e]" />
+                              <p className="text-sm font-bold text-gray-700">
+                                Tu pedido será enviado a:
+                              </p>
+                            </div>
+                            <p className="text-sm text-gray-800">{shippingAddress}</p>
+                            {shippingReference && (
+                              <p className="text-xs text-gray-500">Ref: {shippingReference}</p>
+                            )}
+                            <p className="text-xs text-gray-500 pt-1">
+                              Costo de envío:{' '}
+                              {shippingCost === 0 ? (
+                                <span className="text-green-600 font-semibold">Gratis 🎉</span>
+                              ) : (
+                                <span className="font-semibold text-gray-700">
+                                  Bs {shippingCost.toFixed(2)}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        ) : selectedPickup ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Store className="w-4 h-4 text-[#c89b6e]" />
+                              <p className="text-sm font-bold text-gray-700">
+                                Recoge tu pedido en:
+                              </p>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {selectedPickup.name} — {selectedPickup.aisle},{' '}
+                              {selectedPickup.stall}
+                            </p>
+                            <p className="text-xs text-gray-500">{selectedPickup.hours}</p>
+                            <a
+                              href={selectedPickup.mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-xs text-[#c89b6e] hover:underline mt-0.5"
+                            >
+                              {selectedPickup.mapsLabel}
+                            </a>
+                          </div>
+                        ) : null}
                       </motion.div>
 
                       {/* Confirmación + WhatsApp opcional */}

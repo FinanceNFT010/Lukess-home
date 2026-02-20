@@ -54,7 +54,14 @@ export async function POST(req: NextRequest) {
       customer_phone,
       customer_email,
       marketing_consent,
+      subtotal,
+      shipping_cost,
       total,
+      delivery_method,
+      shipping_address,
+      shipping_reference,
+      pickup_location,
+      gps_coordinates,
       items,
     } = body
 
@@ -170,11 +177,17 @@ export async function POST(req: NextRequest) {
         customer_phone: customer_phone,
         customer_email: customer_email,
         marketing_consent: marketing_consent ?? false,
-        subtotal: total,
+        subtotal: subtotal ?? total,
         discount: 0,
+        shipping_cost: shipping_cost ?? 0,
         total: total,
         status: 'pending',
         payment_method: 'qr',
+        delivery_method: delivery_method ?? 'delivery',
+        shipping_address: shipping_address ?? null,
+        shipping_reference: shipping_reference ?? null,
+        pickup_location: pickup_location ?? null,
+        gps_coordinates: gps_coordinates ?? null,
       })
       .select()
       .single()

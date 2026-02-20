@@ -1,9 +1,21 @@
 # Lukess Home Landing — Active Context
 
 ## Current Block
-**3d** — Transactional emails: order confirmation + admin notification
+**3e** — Inventory sync: auto-decrement + sales history canal
 
 ## Completed Blocks
+- **3d** ✅ Checkout delivery options + shipping address (20 feb 2026)
+  - lib/constants/shipping.ts: SHIPPING_CONFIG (umbral Bs 400, tarifa Bs 25) + PICKUP_LOCATIONS (3 puestos)
+  - CheckoutModal: Sección B con 2 cards "Envío a domicilio" / "Recoger en tienda"
+  - Campos condicionales: dirección + referencia + botón GPS (delivery) / selector de puestos (pickup)
+  - Lógica de costo: pickup → gratis, ≥ Bs 400 → gratis, < Bs 400 → Bs 25
+  - Order summary actualizado: muestra subtotal + envío + total
+  - Step 2 QR: muestra orderTotal con nota de costo de envío
+  - Step 3 confirmación: muestra dirección de entrega o puesto de recogida
+  - app/api/checkout/route.ts: acepta y guarda shipping_cost, delivery_method, shipping_address, shipping_reference, pickup_location, gps_coordinates
+  - lib/types.ts: Order interface ampliada con campos de shipping
+  - ⚠️ PENDIENTE: Ejecutar supabase/migrations/03d_shipping_fields.sql en Supabase SQL Editor
+
 - **3a** ✅ Customer Auth: Schema + Checkout upgrade + Order tracking (20 feb 2026)
   - Nuevas tablas: `customers`, `subscribers`
   - Nuevos campos en `orders`: marketing_consent, managed_by, internal_notes, discount_percent, customer_id
@@ -42,7 +54,7 @@
 - Supabase (compartido): https://supabase.com/dashboard/project/lrcggpdgrqltqbxqnjgh
 
 ## Pending Blocks (Landing)
-3d → Transactional emails: order confirmation + admin notification
+3e → Inventory sync: auto-decrement + sales history canal
 9  → GA4 + SEO dinámico + pulido final
 
 ## Important Notes
