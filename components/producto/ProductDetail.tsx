@@ -190,13 +190,11 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-gray-600" />
               <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
-                stock === 0 
-                  ? 'bg-gray-100 text-gray-600' 
-                  : stock < 10 
-                    ? 'bg-amber-100 text-amber-700' 
-                    : 'bg-green-100 text-green-700'
+                stock === 0
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-green-100 text-green-700'
               }`}>
-                {stock === 0 ? 'Sin stock' : stock < 10 ? 'Pocas unidades' : 'En stock'}
+                {stock === 0 ? 'Sin stock' : 'En stock'}
               </span>
             </div>
 

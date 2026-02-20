@@ -80,11 +80,11 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     brands: [],
     colors: [],
     sizes: [],
-    inStock: true,
+    inStock: false,
     category: null,
     hasDiscount: null,
   })
-  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('inStock')
+  const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'lowStock'>('all')
   const [showNew, setShowNew] = useState(false)
   const [showDiscount, setShowDiscount] = useState(false)
   const [showCollection, setShowCollection] = useState<string | null>(null)
@@ -116,7 +116,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
             setSelectedSubcategories([])
             setSelectedBrands([])
             setSelectedColors([])
-            setStockFilter('inStock')
+            setStockFilter('all')
             setShowNew(false)
             setShowDiscount(false)
             setShowCollection(null)
@@ -432,7 +432,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     count += selectedBrands.length
     count += selectedColors.length
     count += sidebarFilters.sizes.length
-    if (stockFilter !== 'inStock') count++ // inStock es el default
+    if (stockFilter !== 'all') count++
     if (showNew) count++
     if (showDiscount) count++
     if (showCollection) count++
@@ -446,7 +446,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     setSelectedSubcategories([])
     setSelectedBrands([])
     setSelectedColors([])
-    setStockFilter('inStock') // Volver al default
+    setStockFilter('all')
     setShowNew(false)
     setShowDiscount(false)
     setShowCollection(null)
@@ -455,7 +455,7 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       brands: [],
       colors: [],
       sizes: [],
-      inStock: true, // Volver al default
+      inStock: false,
       category: null,
       hasDiscount: null,
     })
