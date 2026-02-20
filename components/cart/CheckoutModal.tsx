@@ -15,6 +15,7 @@ import {
   Truck,
   Store,
   Navigation,
+  Loader2,
 } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
 import { useAuth } from '@/lib/context/AuthContext'
@@ -23,7 +24,13 @@ import Image from 'next/image'
 import toast from 'react-hot-toast'
 import { Confetti, SparkleEffect } from '@/components/ui/Confetti'
 import { AuthModal } from '@/components/auth/AuthModal'
-import { SHIPPING_CONFIG, PICKUP_LOCATIONS } from '@/lib/constants/shipping'
+import {
+  PICKUP_LOCATIONS,
+  FREE_SHIPPING_THRESHOLD,
+  calculateShippingCost,
+  getDistanceFromMutualista,
+  getMapsLink,
+} from '@/lib/utils/shipping'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -33,7 +40,7 @@ interface CheckoutModalProps {
 type Step = 'form' | 'qr' | 'success'
 type PaymentMethod = 'qr' | 'libelula'
 type DeliveryMethod = 'delivery' | 'pickup'
-type GpsStatus = 'idle' | 'captured' | 'denied'
+type GpsStatus = 'idle' | 'loading' | 'captured' | 'denied'
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const { cart, total, clearCart } = useCart()
@@ -61,21 +68,23 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [shippingAddress, setShippingAddress] = useState('')
   const [shippingReference, setShippingReference] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
-  const [gpsCoordinates, setGpsCoordinates] = useState('')
+  const [gpsLat, setGpsLat] = useState<number | null>(null)
+  const [gpsLng, setGpsLng] = useState<number | null>(null)
+  const [gpsDistanceKm, setGpsDistanceKm] = useState<number | null>(null)
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('idle')
+  const [mapsLink, setMapsLink] = useState('')
   const [shippingAddressError, setShippingAddressError] = useState('')
   const [pickupLocationError, setPickupLocationError] = useState('')
 
-  // Shipping cost logic
+  // Computed shipping cost
   const shippingCost =
     deliveryMethod === 'pickup'
       ? 0
-      : total >= SHIPPING_CONFIG.FREE_THRESHOLD
-        ? 0
-        : SHIPPING_CONFIG.FLAT_RATE
+      : gpsStatus === 'captured' && gpsDistanceKm !== null
+        ? calculateShippingCost(gpsDistanceKm, total)
+        : 0
 
   const orderTotal = total + shippingCost
-
   const selectedPickup = PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)
 
   // Pre-fill desde cuenta autenticada
@@ -104,8 +113,11 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setShippingAddress('')
         setShippingReference('')
         setPickupLocation('')
-        setGpsCoordinates('')
+        setGpsLat(null)
+        setGpsLng(null)
+        setGpsDistanceKm(null)
         setGpsStatus('idle')
+        setMapsLink('')
         setShippingAddressError('')
         setPickupLocationError('')
       }, 300)
@@ -123,15 +135,22 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       setGpsStatus('denied')
       return
     }
+    setGpsStatus('loading')
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const coords = `${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`
-        setGpsCoordinates(coords)
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        const distKm = getDistanceFromMutualista(lat, lng)
+        setGpsLat(lat)
+        setGpsLng(lng)
+        setGpsDistanceKm(distKm)
+        setMapsLink(getMapsLink(lat, lng))
         setGpsStatus('captured')
       },
       () => {
         setGpsStatus('denied')
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
     )
   }
 
@@ -158,6 +177,10 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
     // Validate delivery fields
     if (deliveryMethod === 'delivery') {
+      if (gpsStatus !== 'captured') {
+        toast.error('Captura tu ubicación GPS para continuar', { position: 'bottom-center' })
+        return
+      }
       if (!shippingAddress.trim() || shippingAddress.trim().length < 10) {
         setShippingAddressError('Ingresa una dirección válida (mínimo 10 caracteres)')
         return
@@ -191,7 +214,10 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           shipping_reference:
             deliveryMethod === 'delivery' ? shippingReference.trim() || null : null,
           pickup_location: deliveryMethod === 'pickup' ? pickupLocation : null,
-          gps_coordinates: gpsCoordinates || null,
+          gps_lat: gpsLat,
+          gps_lng: gpsLng,
+          gps_distance_km: gpsDistanceKm,
+          maps_link: mapsLink || null,
           items: cart.map((item) => ({
             product_id: item.product.id,
             quantity: item.quantity,
@@ -218,27 +244,26 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
       const { orderId: newOrderId } = data
       const shortId = newOrderId.slice(0, 8).toUpperCase()
-
       setOrderId(newOrderId)
 
       const productList = cart
         .map(
           (item) =>
-            `• ${item.product.name} x${item.quantity}${item.size ? ` (${item.size})` : ''}${item.color ? ` - ${item.color}` : ''}`
+            `• ${item.product.name} x${item.quantity}${item.size ? ` (${item.size})` : ''}${item.color ? ` - ${item.color}` : ''}`,
         )
         .join('\n')
 
       const deliveryInfo =
         deliveryMethod === 'delivery'
-          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}`
+          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}${mapsLink ? `\n📍 Mi ubicación GPS: ${mapsLink}` : ''}`
           : `\n\n🏪 *Recojo en tienda:* ${PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)?.name ?? pickupLocation}`
 
       setWhatsappMessage(
         encodeURIComponent(
           `Hola! Realicé el pedido #${shortId} por Bs ${orderTotal.toFixed(2)}.\n\n` +
             `🛍️ *Productos:*\n${productList}${deliveryInfo}\n\n` +
-            `Ya realicé el pago por QR. ¿Pueden confirmar? 🙏`
-        )
+            `Ya realicé el pago por QR. ¿Pueden confirmar? 🙏`,
+        ),
       )
 
       setStep('qr')
@@ -270,8 +295,11 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setShippingAddress('')
     setShippingReference('')
     setPickupLocation('')
-    setGpsCoordinates('')
+    setGpsLat(null)
+    setGpsLng(null)
+    setGpsDistanceKm(null)
     setGpsStatus('idle')
+    setMapsLink('')
   }
 
   return (
@@ -438,20 +466,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               className={`w-6 h-6 mb-2 ${deliveryMethod === 'delivery' ? 'text-[#c89b6e]' : 'text-gray-400'}`}
                             />
                             <p className="font-bold text-sm text-gray-800">Envío a domicilio</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {SHIPPING_CONFIG.CITY}
-                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">Santa Cruz</p>
                             <div className="mt-2 space-y-0.5">
-                              {total >= SHIPPING_CONFIG.FREE_THRESHOLD ? (
+                              {total >= FREE_SHIPPING_THRESHOLD ? (
                                 <p className="text-xs text-green-600 font-semibold">Gratis 🎉</p>
                               ) : (
                                 <>
-                                  <p className="text-xs text-gray-500">
-                                    &lt; Bs {SHIPPING_CONFIG.FREE_THRESHOLD} → Bs{' '}
-                                    {SHIPPING_CONFIG.FLAT_RATE}
-                                  </p>
+                                  <p className="text-xs text-gray-500">Desde Bs 15</p>
                                   <p className="text-xs text-green-600">
-                                    ≥ Bs {SHIPPING_CONFIG.FREE_THRESHOLD} → Gratis
+                                    ≥ Bs {FREE_SHIPPING_THRESHOLD} → Gratis
                                   </p>
                                 </>
                               )}
@@ -473,20 +496,98 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             />
                             <p className="font-bold text-sm text-gray-800">Recoger en tienda</p>
                             <p className="text-xs text-gray-500 mt-0.5">Mercado Mutualista</p>
-                            <p className="text-xs text-green-600 font-semibold mt-2">Gratis</p>
+                            <p className="text-xs text-green-600 font-semibold mt-2">
+                              Siempre gratis
+                            </p>
                           </button>
                         </div>
 
                         {/* Campos condicionales: DELIVERY */}
                         {deliveryMethod === 'delivery' && (
-                          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 space-y-3">
+                          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 space-y-4">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-[#c89b6e]" />
                               <p className="text-sm font-semibold text-gray-700">
-                                Dirección de entrega
+                                Tu ubicación de entrega
                               </p>
                             </div>
 
+                            {/* GPS Button */}
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={handleGps}
+                                disabled={gpsStatus === 'loading'}
+                                className={`flex items-center gap-2 w-full justify-center text-sm px-4 py-2.5 rounded-lg border-2 font-semibold transition-all ${
+                                  gpsStatus === 'captured'
+                                    ? 'border-green-400 bg-green-50 text-green-700'
+                                    : gpsStatus === 'denied'
+                                      ? 'border-red-300 bg-red-50 text-red-600'
+                                      : gpsStatus === 'loading'
+                                        ? 'border-amber-300 bg-amber-50 text-amber-600 cursor-wait'
+                                        : 'border-[#c89b6e] bg-[#fdf8f3] text-[#c89b6e] hover:bg-[#f5ede0]'
+                                }`}
+                              >
+                                {gpsStatus === 'loading' ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Navigation className="w-4 h-4" />
+                                )}
+                                {gpsStatus === 'captured'
+                                  ? '✓ Ubicación capturada'
+                                  : gpsStatus === 'denied'
+                                    ? '⚠ GPS no disponible'
+                                    : gpsStatus === 'loading'
+                                      ? 'Obteniendo ubicación...'
+                                      : '📍 Compartir mi ubicación GPS'}
+                              </button>
+
+                              {/* GPS captured: show distance + cost */}
+                              {gpsStatus === 'captured' && gpsDistanceKm !== null && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-0.5">
+                                  <p className="text-xs text-green-700 font-semibold">
+                                    📍 {gpsLat?.toFixed(4)}, {gpsLng?.toFixed(4)} ·{' '}
+                                    {gpsDistanceKm.toFixed(1)} km del local
+                                  </p>
+                                  <p className="text-xs text-green-700">
+                                    🚚 Costo de envío:{' '}
+                                    {shippingCost === 0 ? (
+                                      <span className="font-bold">Gratis 🎉</span>
+                                    ) : (
+                                      <span className="font-bold">Bs {shippingCost}</span>
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* GPS denied: warning */}
+                              {gpsStatus === 'denied' && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                  <p className="text-xs text-red-700 font-semibold mb-1">
+                                    ⚠️ GPS no disponible
+                                  </p>
+                                  <p className="text-xs text-red-600">
+                                    Sin ubicación GPS no podemos calcular el costo de envío.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeliveryMethod('pickup')}
+                                    className="mt-2 text-xs text-[#c89b6e] font-semibold underline hover:no-underline"
+                                  >
+                                    Selecciona &quot;Recoger en tienda&quot; →
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* idle hint */}
+                              {gpsStatus === 'idle' && (
+                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                                  📍 Requerido para calcular el costo de envío con precisión
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Address fields — always show for delivery */}
                             <div>
                               <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                                 Dirección *
@@ -521,36 +622,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-[#c89b6e] focus:outline-none"
                                 placeholder="Ej: Frente al parque, edificio azul"
                               />
-                            </div>
-
-                            {/* GPS Button */}
-                            <div>
-                              <button
-                                type="button"
-                                onClick={handleGps}
-                                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border-2 transition-all ${
-                                  gpsStatus === 'captured'
-                                    ? 'border-green-400 bg-green-50 text-green-700'
-                                    : gpsStatus === 'denied'
-                                      ? 'border-red-300 bg-red-50 text-red-600'
-                                      : 'border-gray-300 hover:border-[#c89b6e] text-gray-600 hover:text-[#c89b6e]'
-                                }`}
-                              >
-                                <Navigation className="w-4 h-4" />
-                                {gpsStatus === 'captured'
-                                  ? '✓ Ubicación capturada'
-                                  : gpsStatus === 'denied'
-                                    ? 'Ingresa tu dirección manualmente'
-                                    : '📍 Compartir mi ubicación GPS'}
-                              </button>
-                              {gpsStatus === 'captured' && gpsCoordinates && (
-                                <p className="text-xs text-gray-400 mt-1 ml-1">{gpsCoordinates}</p>
-                              )}
-                              {gpsStatus === 'idle' && (
-                                <p className="text-xs text-gray-400 mt-1 ml-1">
-                                  Para entrega más precisa
-                                </p>
-                              )}
                             </div>
                           </div>
                         )}
@@ -617,11 +688,34 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           <span>Bs {total.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Envío:</span>
-                          {shippingCost === 0 ? (
-                            <span className="text-green-600 font-semibold">Gratis 🎉</span>
+                          <div>
+                            <span className="text-gray-600">Envío:</span>
+                            {deliveryMethod === 'delivery' &&
+                              gpsStatus === 'captured' &&
+                              gpsDistanceKm !== null &&
+                              shippingCost > 0 && (
+                                <span className="text-xs text-gray-400 ml-1">
+                                  ({gpsDistanceKm.toFixed(1)} km)
+                                </span>
+                              )}
+                          </div>
+                          {deliveryMethod === 'pickup' ? (
+                            <span className="text-green-600 font-semibold">
+                              Gratis · Recojo en tienda
+                            </span>
+                          ) : gpsStatus === 'captured' ? (
+                            shippingCost === 0 ? (
+                              <span className="text-green-600 font-semibold">
+                                Gratis 🎉
+                                <span className="text-xs font-normal ml-1">(pedido ≥ Bs 400)</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-700">Bs {shippingCost.toFixed(2)}</span>
+                            )
                           ) : (
-                            <span className="text-gray-700">Bs {shippingCost.toFixed(2)}</span>
+                            <span className="text-amber-600 font-medium text-xs">
+                              Pendiente GPS
+                            </span>
                           )}
                         </div>
                         <div className="border-t border-primary-200 pt-2 flex items-center justify-between">
@@ -646,13 +740,36 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </span>
                       </label>
 
-                      <button
-                        type="submit"
-                        disabled={isProcessing}
-                        className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-700 hover:to-primary-800 transform hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                      >
-                        {isProcessing ? 'Procesando...' : 'Continuar al Pago'}
-                      </button>
+                      {/* Submit — disabled if delivery without GPS */}
+                      {deliveryMethod === 'delivery' && gpsStatus === 'denied' ? (
+                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
+                          <p className="text-sm text-red-700 font-semibold mb-2">
+                            GPS requerido para envío a domicilio
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryMethod('pickup')}
+                            className="text-sm text-[#c89b6e] font-bold underline hover:no-underline"
+                          >
+                            Cambiar a &quot;Recoger en tienda&quot; →
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="submit"
+                          disabled={
+                            isProcessing ||
+                            (deliveryMethod === 'delivery' && gpsStatus !== 'captured')
+                          }
+                          className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-700 hover:to-primary-800 transform hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                        >
+                          {isProcessing
+                            ? 'Procesando...'
+                            : deliveryMethod === 'delivery' && gpsStatus !== 'captured'
+                              ? '📍 Captura tu GPS para continuar'
+                              : 'Continuar al Pago'}
+                        </button>
+                      )}
                     </form>
                   )}
 
@@ -705,7 +822,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 Próximamente
                               </span>
                             </div>
-                            {/* Tooltip al hover sobre el wrapper */}
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center shadow-lg">
                               Integración con Libélula próximamente. Acepta Visa, Mastercard, QR
                               Bolivia y más.
@@ -737,6 +853,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         {shippingCost > 0 && (
                           <p className="text-xs mt-1.5 text-white/70">
                             Incluye Bs {shippingCost.toFixed(2)} de envío
+                            {gpsDistanceKm !== null && ` · ${gpsDistanceKm.toFixed(1)} km`}
                           </p>
                         )}
                       </div>
@@ -827,17 +944,18 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         {deliveryMethod === 'delivery' ? (
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 mb-2">
-                              <MapPin className="w-4 h-4 text-[#c89b6e]" />
+                              <Truck className="w-4 h-4 text-[#c89b6e]" />
                               <p className="text-sm font-bold text-gray-700">
-                                Tu pedido será enviado a:
+                                Entrega a domicilio
                               </p>
                             </div>
                             <p className="text-sm text-gray-800">{shippingAddress}</p>
                             {shippingReference && (
                               <p className="text-xs text-gray-500">Ref: {shippingReference}</p>
                             )}
-                            <p className="text-xs text-gray-500 pt-1">
-                              Costo de envío:{' '}
+                            <p className="text-xs text-gray-500 pt-0.5">
+                              {gpsDistanceKm !== null && `Distancia: ${gpsDistanceKm.toFixed(1)} km · `}
+                              Envío:{' '}
                               {shippingCost === 0 ? (
                                 <span className="text-green-600 font-semibold">Gratis 🎉</span>
                               ) : (
@@ -846,14 +964,22 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 </span>
                               )}
                             </p>
+                            {mapsLink && (
+                              <a
+                                href={mapsLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block text-xs text-[#c89b6e] hover:underline mt-0.5"
+                              >
+                                Ver mi ubicación en Maps →
+                              </a>
+                            )}
                           </div>
                         ) : selectedPickup ? (
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 mb-2">
                               <Store className="w-4 h-4 text-[#c89b6e]" />
-                              <p className="text-sm font-bold text-gray-700">
-                                Recoge tu pedido en:
-                              </p>
+                              <p className="text-sm font-bold text-gray-700">Retiro en tienda</p>
                             </div>
                             <p className="text-sm font-semibold text-gray-800">
                               {selectedPickup.name} — {selectedPickup.aisle},{' '}
@@ -932,7 +1058,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           transition={{ delay: 0.9 }}
                           className="border-2 border-[#c89b6e]/40 bg-[#fdf8f3] rounded-xl p-5 text-left relative"
                         >
-                          {/* Botón cerrar × */}
                           <button
                             onClick={() => setShowAccountCard(false)}
                             className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"

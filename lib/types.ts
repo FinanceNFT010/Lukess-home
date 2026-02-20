@@ -55,6 +55,9 @@ export interface Order {
   shipping_address?: string | null
   shipping_reference?: string | null
   pickup_location?: string | null
-  gps_coordinates?: string | null
+  gps_lat?: number | null
+  gps_lng?: number | null
+  gps_distance_km?: number | null
+  maps_link?: string | null
   created_at: string
 }

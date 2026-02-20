@@ -61,7 +61,10 @@ export async function POST(req: NextRequest) {
       shipping_address,
       shipping_reference,
       pickup_location,
-      gps_coordinates,
+      gps_lat,
+      gps_lng,
+      gps_distance_km,
+      maps_link,
       items,
     } = body
 
@@ -187,7 +190,10 @@ export async function POST(req: NextRequest) {
         shipping_address: shipping_address ?? null,
         shipping_reference: shipping_reference ?? null,
         pickup_location: pickup_location ?? null,
-        gps_coordinates: gps_coordinates ?? null,
+        gps_lat: gps_lat ?? null,
+        gps_lng: gps_lng ?? null,
+        gps_distance_km: gps_distance_km ?? null,
+        maps_link: maps_link ?? null,
       })
       .select()
       .single()

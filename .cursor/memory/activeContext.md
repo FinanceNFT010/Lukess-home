@@ -4,16 +4,19 @@
 **3e** — Inventory sync: auto-decrement + sales history canal
 
 ## Completed Blocks
-- **3d** ✅ Checkout delivery options + shipping address (20 feb 2026)
-  - lib/constants/shipping.ts: SHIPPING_CONFIG (umbral Bs 400, tarifa Bs 25) + PICKUP_LOCATIONS (3 puestos)
-  - CheckoutModal: Sección B con 2 cards "Envío a domicilio" / "Recoger en tienda"
-  - Campos condicionales: dirección + referencia + botón GPS (delivery) / selector de puestos (pickup)
-  - Lógica de costo: pickup → gratis, ≥ Bs 400 → gratis, < Bs 400 → Bs 25
-  - Order summary actualizado: muestra subtotal + envío + total
-  - Step 2 QR: muestra orderTotal con nota de costo de envío
-  - Step 3 confirmación: muestra dirección de entrega o puesto de recogida
-  - app/api/checkout/route.ts: acepta y guarda shipping_cost, delivery_method, shipping_address, shipping_reference, pickup_location, gps_coordinates
-  - lib/types.ts: Order interface ampliada con campos de shipping
+- **3d** ✅ Checkout GPS-based shipping cost + delivery/pickup options (20 feb 2026)
+  - lib/utils/shipping.ts: Haversine formula, getDistanceFromMutualista, calculateShippingCost, getMapsLink, PICKUP_LOCATIONS
+  - Tabla de costos por distancia GPS: 0-3km→Bs15, 3-6km→Bs20, 6-10km→Bs25, 10-15km→Bs35, +15km→Bs45
+  - GPS REQUERIDO para envío a domicilio — sin GPS no se puede continuar
+  - CheckoutModal: GPS loading spinner, distancia + costo calculado en tiempo real, warning GPS denegado
+  - Botón submit bloqueado hasta capturar GPS (delivery) / seleccionar puesto (pickup)
+  - Step 2 QR: muestra total + distancia en km
+  - Step 3 confirmación: "Ver mi ubicación en Maps →" con link real GPS
+  - WhatsApp message incluye link GPS real
+  - app/api/checkout/route.ts: guarda gps_lat, gps_lng, gps_distance_km, maps_link
+  - components/producto/ProductDetail.tsx: banner "Envío a Santa Cruz · desde Bs 15 · Retiro gratis"
+  - components/cart/CartDrawer.tsx: progress bar hacia envío gratis (≥ Bs 400)
+  - lib/types.ts: Order interface con gps_lat, gps_lng, gps_distance_km, maps_link
   - ⚠️ PENDIENTE: Ejecutar supabase/migrations/03d_shipping_fields.sql en Supabase SQL Editor
 
 - **3a** ✅ Customer Auth: Schema + Checkout upgrade + Order tracking (20 feb 2026)

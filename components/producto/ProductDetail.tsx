@@ -3,7 +3,8 @@ import { useState } from 'react'
 import Container from '@/components/ui/Container'
 import { Product } from '@/lib/types'
 import { useCart } from '@/lib/context/CartContext'
-import { ShoppingCart, MessageCircle, Package, TrendingUp, ChevronRight, Home, Percent, Ruler } from 'lucide-react'
+import { ShoppingCart, MessageCircle, Package, TrendingUp, ChevronRight, Home, Percent, Ruler, Truck, Store } from 'lucide-react'
+import { FREE_SHIPPING_THRESHOLD } from '@/lib/utils/shipping'
 import Image from 'next/image'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
@@ -311,6 +312,27 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                   <MessageCircle className="w-5 h-5" />
                   Consultar
                 </button>
+              </div>
+
+              {/* Shipping info banner */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#c89b6e] flex-shrink-0" />
+                  <span className="text-sm font-semibold text-gray-700">Envío a Santa Cruz</span>
+                </div>
+                <p className="text-xs text-gray-500 ml-6">
+                  · Gratis en pedidos mayores a Bs {FREE_SHIPPING_THRESHOLD}
+                </p>
+                <p className="text-xs text-gray-500 ml-6">
+                  · Desde Bs 15 según tu distancia (calculado con GPS)
+                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Store className="w-4 h-4 text-[#c89b6e] flex-shrink-0" />
+                  <p className="text-xs text-gray-500">
+                    <span className="font-semibold text-gray-700">Retiro en tienda gratis</span>{' '}
+                    · Mercado Mutualista
+                  </p>
+                </div>
               </div>
             </motion.div>
           </div>

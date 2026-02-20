@@ -1,8 +1,9 @@
 'use client'
-import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
+import { X, Minus, Plus, Trash2, ShoppingBag, Truck } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
+import { FREE_SHIPPING_THRESHOLD } from '@/lib/utils/shipping'
 
 interface CartDrawerProps {
   isOpen: boolean
@@ -117,8 +118,40 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
 
             {/* Footer */}
             {cart.length > 0 && (
-              <div className="p-4 border-t-2 border-gray-100 bg-gray-50">
-                <div className="flex items-center justify-between mb-4">
+              <div className="p-4 border-t-2 border-gray-100 bg-gray-50 space-y-3">
+                {/* Free shipping progress */}
+                {total >= FREE_SHIPPING_THRESHOLD ? (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <Truck className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <p className="text-xs text-green-700 font-semibold">
+                      🎉 ¡Envío gratis incluido!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="text-xs text-gray-500">
+                          Bs {(FREE_SHIPPING_THRESHOLD - total).toFixed(2)} más para envío gratis
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        Bs {FREE_SHIPPING_THRESHOLD}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-[#c89b6e] h-1.5 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min((total / FREE_SHIPPING_THRESHOLD) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
                   <span className="text-gray-700 font-semibold">Total:</span>
                   <span className="text-2xl font-bold text-primary-600">
                     Bs {total.toFixed(2)}
