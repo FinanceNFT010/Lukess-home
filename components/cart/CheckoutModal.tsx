@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import {
   X,
   CheckCircle,
@@ -16,6 +17,7 @@ import {
   Store,
   Navigation,
   Loader2,
+  Map,
 } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
 import { useAuth } from '@/lib/context/AuthContext'
@@ -33,6 +35,21 @@ import {
   getMapsLink,
 } from '@/lib/utils/shipping'
 
+const DeliveryMapPicker = dynamic(
+  () => import('@/components/cart/DeliveryMapPicker'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-72 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-sm border-2 border-gray-200">
+        Cargando mapa...
+      </div>
+    ),
+  },
+)
+
+const MUTUALISTA_LAT = -17.762778
+const MUTUALISTA_LNG = -63.161667
+
 interface CheckoutModalProps {
   isOpen: boolean
   onClose: () => void
@@ -41,7 +58,7 @@ interface CheckoutModalProps {
 type Step = 'form' | 'qr' | 'success'
 type PaymentMethod = 'qr' | 'libelula'
 type DeliveryMethod = 'delivery' | 'pickup'
-type GpsStatus = 'idle' | 'loading' | 'captured' | 'denied'
+type LocationState = 'initial' | 'gps_loading' | 'gps_denied' | 'map_open' | 'confirmed'
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const { cart, total, clearCart } = useCart()
@@ -69,19 +86,27 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [shippingAddress, setShippingAddress] = useState('')
   const [shippingReference, setShippingReference] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
+  const [shippingAddressError, setShippingAddressError] = useState('')
+  const [pickupLocationError, setPickupLocationError] = useState('')
+
+  // Location state
+  const [locationState, setLocationState] = useState<LocationState>('initial')
+  const [locationSource, setLocationSource] = useState<'gps' | 'map' | null>(null)
   const [gpsLat, setGpsLat] = useState<number | null>(null)
   const [gpsLng, setGpsLng] = useState<number | null>(null)
   const [gpsDistanceKm, setGpsDistanceKm] = useState<number | null>(null)
-  const [gpsStatus, setGpsStatus] = useState<GpsStatus>('idle')
   const [mapsLink, setMapsLink] = useState('')
-  const [shippingAddressError, setShippingAddressError] = useState('')
-  const [pickupLocationError, setPickupLocationError] = useState('')
+
+  // Recipient state
+  const [recipientName, setRecipientName] = useState('')
+  const [recipientPhone, setRecipientPhone] = useState('')
+  const [recipientPhoneError, setRecipientPhoneError] = useState('')
 
   // Computed shipping
   const rawShippingCost: number | 'out_of_range' =
     deliveryMethod === 'pickup'
       ? 0
-      : gpsStatus === 'captured' && gpsDistanceKm !== null
+      : gpsDistanceKm !== null
         ? calculateShippingCost(gpsDistanceKm, total)
         : 0
 
@@ -90,7 +115,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const orderTotal = total + shippingCost
   const selectedPickup = PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)
 
-  // Pre-fill desde cuenta autenticada
+  // Pre-fill recipient from customer data
+  useEffect(() => {
+    setRecipientName((prev) => prev || customerData.name)
+    setRecipientPhone((prev) => prev || customerData.phone)
+  }, [customerData.name, customerData.phone])
+
+  // Pre-fill from authenticated account
   useEffect(() => {
     if (isLoggedIn && user) {
       setCustomerData((prev) => ({
@@ -102,7 +133,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     }
   }, [isLoggedIn, user, customerName])
 
-  // Reset al cerrar el modal
+  // Reset on modal close
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
@@ -116,13 +147,17 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setShippingAddress('')
         setShippingReference('')
         setPickupLocation('')
+        setShippingAddressError('')
+        setPickupLocationError('')
+        setLocationState('initial')
+        setLocationSource(null)
         setGpsLat(null)
         setGpsLng(null)
         setGpsDistanceKm(null)
-        setGpsStatus('idle')
         setMapsLink('')
-        setShippingAddressError('')
-        setPickupLocationError('')
+        setRecipientName('')
+        setRecipientPhone('')
+        setRecipientPhoneError('')
       }, 300)
     }
   }, [isOpen])
@@ -133,39 +168,63 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     return ''
   }
 
+  const setLocation = (lat: number, lng: number) => {
+    const distKm = getDistanceFromMutualista(lat, lng)
+    setGpsLat(lat)
+    setGpsLng(lng)
+    setGpsDistanceKm(distKm)
+    setMapsLink(getMapsLink(lat, lng))
+  }
+
   const handleGps = () => {
     if (!navigator.geolocation) {
-      setGpsStatus('denied')
+      setLocationState('gps_denied')
       return
     }
-    setGpsStatus('loading')
+    setLocationState('gps_loading')
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
-        const distKm = getDistanceFromMutualista(lat, lng)
-        setGpsLat(lat)
-        setGpsLng(lng)
-        setGpsDistanceKm(distKm)
-        setMapsLink(getMapsLink(lat, lng))
-        setGpsStatus('captured')
+        setLocation(pos.coords.latitude, pos.coords.longitude)
+        setLocationSource('gps')
+        setLocationState('map_open')
       },
       () => {
-        setGpsStatus('denied')
+        setLocationState('gps_denied')
       },
       { enableHighAccuracy: true, timeout: 10000 },
     )
   }
 
-  const switchToPickup = () => {
-    setDeliveryMethod('pickup')
+  const handleOpenMap = () => {
+    if (!gpsLat) {
+      setLocation(MUTUALISTA_LAT, MUTUALISTA_LNG)
+    }
+    setLocationSource('map')
+    setLocationState('map_open')
   }
 
-  // Build the out-of-range WhatsApp cotización link
+  const handleMapLocationUpdate = (lat: number, lng: number) => {
+    setLocation(lat, lng)
+  }
+
+  const handleConfirmLocation = () => {
+    setLocationState('confirmed')
+  }
+
+  const handleResetLocation = () => {
+    setLocationState('initial')
+    setLocationSource(null)
+    setGpsLat(null)
+    setGpsLng(null)
+    setGpsDistanceKm(null)
+    setMapsLink('')
+  }
+
+  // Out-of-range WhatsApp cotización
   const outOfRangeWaUrl =
-    gpsStatus === 'captured' && mapsLink
+    mapsLink
       ? `https://wa.me/59176020369?text=${encodeURIComponent(
-          `Hola! Quiero cotizar un envío.\nPedido:\n${cart.map((i) => `• ${i.product.name} x${i.quantity}`).join('\n')}\nTotal: Bs ${total.toFixed(2)}\n📍 Mi ubicación: ${mapsLink}\n¿Cuánto costaría el envío hasta allí? 🙏`,
+          `Hola! Quiero cotizar un envío 📦\n*Productos:*\n${cart.map((i) => `• ${i.product.name} x${i.quantity}`).join('\n')}\n💰 Total del pedido: Bs ${total.toFixed(2)}\n📍 Ubicación de entrega: ${mapsLink}\n¿Cuánto cuesta el envío hasta allí? 🙏`,
         )}`
       : ''
 
@@ -191,8 +250,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setEmailError('')
 
     if (deliveryMethod === 'delivery') {
-      if (gpsStatus !== 'captured') {
-        toast.error('Captura tu ubicación GPS para continuar', { position: 'bottom-center' })
+      if (locationState !== 'confirmed') {
+        toast.error('Confirma tu ubicación de entrega', { position: 'bottom-center' })
         return
       }
       if (isOutOfRange) {
@@ -204,6 +263,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         return
       }
       setShippingAddressError('')
+      if (!recipientName.trim()) {
+        toast.error('Ingresa el nombre de quien recibe', { position: 'bottom-center' })
+        return
+      }
+      if (!phoneRegex.test(recipientPhone.replace(/\s/g, ''))) {
+        setRecipientPhoneError('Número inválido (7-8 dígitos)')
+        return
+      }
+      setRecipientPhoneError('')
     } else {
       if (!pickupLocation) {
         setPickupLocationError('Selecciona un puesto de recogida')
@@ -236,6 +304,9 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           gps_lng: gpsLng,
           gps_distance_km: gpsDistanceKm,
           maps_link: mapsLink || null,
+          recipient_name: deliveryMethod === 'delivery' ? recipientName.trim() : null,
+          recipient_phone:
+            deliveryMethod === 'delivery' ? recipientPhone.replace(/\s/g, '') : null,
           items: cart.map((item) => ({
             product_id: item.product.id,
             quantity: item.quantity,
@@ -273,7 +344,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
       const deliveryInfo =
         deliveryMethod === 'delivery'
-          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}${mapsLink ? `\n📍 Mi ubicación GPS: ${mapsLink}` : ''}`
+          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}\n👤 *Recibe:* ${recipientName} · ${recipientPhone}${mapsLink ? `\n📍 Ubicación exacta: ${mapsLink}` : ''}`
           : `\n\n🏪 *Recojo en tienda:* ${PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)?.name ?? pickupLocation}`
 
       setWhatsappMessage(
@@ -310,23 +381,24 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setShippingAddress('')
     setShippingReference('')
     setPickupLocation('')
+    setLocationState('initial')
+    setLocationSource(null)
     setGpsLat(null)
     setGpsLng(null)
     setGpsDistanceKm(null)
-    setGpsStatus('idle')
     setMapsLink('')
+    setRecipientName('')
+    setRecipientPhone('')
   }
 
-  // Whether the "Continuar" button should be disabled
   const isContinueDisabled =
     isProcessing ||
-    (deliveryMethod === 'delivery' && (gpsStatus !== 'captured' || isOutOfRange))
+    (deliveryMethod === 'delivery' && (locationState !== 'confirmed' || isOutOfRange))
 
-  // Label for the "Continuar" button
   const continueLabel = isProcessing
     ? 'Procesando...'
-    : deliveryMethod === 'delivery' && gpsStatus !== 'captured'
-      ? '📍 Captura tu GPS para continuar'
+    : deliveryMethod === 'delivery' && locationState !== 'confirmed'
+      ? '📍 Confirma tu ubicación de entrega'
       : deliveryMethod === 'delivery' && isOutOfRange
         ? '⚠️ Fuera de zona de envío'
         : 'Continuar al Pago'
@@ -480,7 +552,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </h3>
 
                         <div className="grid grid-cols-2 gap-3">
-                          {/* Envío a domicilio */}
                           <button
                             type="button"
                             onClick={() => setDeliveryMethod('delivery')}
@@ -495,7 +566,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             />
                             <p className="font-bold text-sm text-gray-800">Envío a domicilio</p>
                             <p className="text-xs text-gray-500 mt-0.5">Santa Cruz</p>
-                            <div className="mt-2 space-y-0.5">
+                            <div className="mt-2">
                               {total >= FREE_SHIPPING_THRESHOLD ? (
                                 <p className="text-xs text-green-600 font-semibold">Gratis 🎉</p>
                               ) : (
@@ -511,7 +582,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             </div>
                           </button>
 
-                          {/* Recoger en tienda */}
                           <button
                             type="button"
                             onClick={() => setDeliveryMethod('pickup')}
@@ -532,137 +602,94 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           </button>
                         </div>
 
-                        {/* ── Campos: DELIVERY ── */}
+                        {/* ── DELIVERY: location flow ── */}
                         {deliveryMethod === 'delivery' && (
                           <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 space-y-4">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-[#c89b6e]" />
                               <p className="text-sm font-semibold text-gray-700">
-                                Tu ubicación de entrega
+                                ¿Dónde entregamos tu pedido?
                               </p>
                             </div>
 
-                            {/* GPS Button */}
-                            <div className="space-y-2">
-                              <button
-                                type="button"
-                                onClick={handleGps}
-                                disabled={gpsStatus === 'loading'}
-                                className={`flex items-center gap-2 w-full justify-center text-sm px-4 py-2.5 rounded-lg border-2 font-semibold transition-all ${
-                                  gpsStatus === 'captured' && !isOutOfRange
-                                    ? 'border-green-400 bg-green-50 text-green-700'
-                                    : gpsStatus === 'captured' && isOutOfRange
-                                      ? 'border-red-300 bg-red-50 text-red-600'
-                                      : gpsStatus === 'denied'
-                                        ? 'border-red-300 bg-red-50 text-red-600'
-                                        : gpsStatus === 'loading'
-                                          ? 'border-amber-300 bg-amber-50 text-amber-600 cursor-wait'
-                                          : 'border-[#c89b6e] bg-[#fdf8f3] text-[#c89b6e] hover:bg-[#f5ede0]'
-                                }`}
-                              >
-                                {gpsStatus === 'loading' ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Navigation className="w-4 h-4" />
-                                )}
-                                {gpsStatus === 'captured'
-                                  ? isOutOfRange
-                                    ? '📍 Ubicación capturada (fuera de zona)'
-                                    : '✓ Ubicación capturada'
-                                  : gpsStatus === 'denied'
-                                    ? '📍 Ubicación bloqueada'
-                                    : gpsStatus === 'loading'
-                                      ? 'Obteniendo ubicación...'
-                                      : '📍 Compartir mi ubicación GPS'}
-                              </button>
-
-                              {/* GPS captured — within range */}
-                              {gpsStatus === 'captured' && gpsDistanceKm !== null && !isOutOfRange && (
-                                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-0.5">
-                                  <p className="text-xs text-green-700 font-semibold">
-                                    📍 {gpsDistanceKm.toFixed(1)} km del local
-                                  </p>
-                                  <p className="text-xs text-green-700">
-                                    🛵 Costo de envío:{' '}
-                                    {shippingCost === 0 ? (
-                                      <span className="font-bold">Gratis 🎉</span>
-                                    ) : (
-                                      <span className="font-bold">Bs {shippingCost}</span>
-                                    )}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* GPS captured — OUT OF RANGE */}
-                              {gpsStatus === 'captured' && isOutOfRange && gpsDistanceKm !== null && (
-                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+                            {/* STEP A — Initial: two options */}
+                            {locationState === 'initial' && (
+                              <div className="space-y-3">
+                                <button
+                                  type="button"
+                                  onClick={handleGps}
+                                  className="flex items-center gap-3 w-full p-3 rounded-xl border-2 border-[#c89b6e] bg-[#fdf8f3] hover:bg-[#f5ede0] transition-all text-left"
+                                >
+                                  <Navigation className="w-5 h-5 text-[#c89b6e] flex-shrink-0" />
                                   <div>
-                                    <p className="text-xs font-bold text-red-700">
-                                      📍 {gpsDistanceKm.toFixed(1)} km del local
+                                    <p className="text-sm font-bold text-gray-800">
+                                      Usar mi ubicación actual
                                     </p>
-                                    <p className="text-xs text-red-600 mt-0.5">
-                                      ⚠️ Tu ubicación está fuera de nuestra zona de envío (máx.{' '}
-                                      {MAX_DELIVERY_DISTANCE_KM} km).
-                                    </p>
+                                    <p className="text-xs text-gray-500">Rápido y preciso</p>
                                   </div>
-                                  <p className="text-xs text-red-600">
-                                    Para envíos a larga distancia, cotiza por WhatsApp:
-                                  </p>
-                                  <a
-                                    href={outOfRangeWaUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center gap-2 w-full bg-[#25d366] hover:bg-[#1fb855] text-white text-xs font-semibold py-2 rounded-lg transition-all"
-                                  >
-                                    <MessageCircle className="w-3.5 h-3.5" />
-                                    Cotizar envío por WhatsApp
-                                  </a>
-                                  <div className="border-t border-red-200 pt-2">
-                                    <p className="text-xs text-gray-500 mb-1.5">── ó ──</p>
-                                    <p className="text-xs text-gray-600 mb-1.5">
-                                      🏪 Recoge gratis en nuestros puestos
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={switchToPickup}
-                                      className="text-xs text-[#c89b6e] font-semibold underline hover:no-underline"
-                                    >
-                                      Ver opciones de recojo →
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
+                                </button>
 
-                              {/* GPS DENIED — instructions to re-enable */}
-                              {gpsStatus === 'denied' && (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-px bg-gray-200" />
+                                  <span className="text-xs text-gray-400 px-1">o</span>
+                                  <div className="flex-1 h-px bg-gray-200" />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={handleOpenMap}
+                                  className="flex items-center gap-3 w-full p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all text-left"
+                                >
+                                  <Map className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-800">
+                                      Elegir en el mapa
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Mueve el pin al lugar exacto
+                                    </p>
+                                  </div>
+                                </button>
+                              </div>
+                            )}
+
+                            {/* GPS Loading */}
+                            {locationState === 'gps_loading' && (
+                              <div className="flex items-center justify-center gap-3 py-6">
+                                <Loader2 className="w-6 h-6 animate-spin text-[#c89b6e]" />
+                                <p className="text-sm text-gray-600 font-medium">
+                                  Obteniendo tu ubicación...
+                                </p>
+                              </div>
+                            )}
+
+                            {/* GPS Denied — instructions + map option */}
+                            {locationState === 'gps_denied' && (
+                              <div className="space-y-3">
                                 <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2.5">
-                                  <div>
-                                    <p className="text-xs font-bold text-red-700 mb-1">
-                                      📍 Ubicación bloqueada
-                                    </p>
-                                    <p className="text-xs text-red-600">
-                                      Necesitamos tu ubicación para calcular el costo de envío
-                                      exacto.
-                                    </p>
-                                  </div>
-
+                                  <p className="text-xs font-bold text-red-700">
+                                    📍 Ubicación bloqueada
+                                  </p>
+                                  <p className="text-xs text-red-600">
+                                    GPS no disponible en este navegador.
+                                  </p>
                                   <div className="space-y-1.5">
                                     <p className="text-xs font-semibold text-gray-700">
-                                      Cómo activar la ubicación:
+                                      Cómo activar:
                                     </p>
-                                    <div className="bg-white border border-red-100 rounded-lg p-2.5 space-y-1.5">
-                                      <p className="text-xs text-gray-700 font-medium">
-                                        🖥️ En computadora (Chrome):
+                                    <div className="bg-white border border-red-100 rounded-lg p-2.5">
+                                      <p className="text-xs text-gray-700 font-medium mb-0.5">
+                                        🖥️ Chrome / Edge:
                                       </p>
                                       <p className="text-xs text-gray-600 leading-relaxed">
                                         Haz clic en el ícono 📍 tachado en la barra de dirección
-                                        (arriba a la izquierda) → activa{' '}
-                                        <strong>Ubicación</strong> → recarga la página
+                                        (arriba izquierda) → activa{' '}
+                                        <strong>Ubicación</strong> → Permitir → recarga la página
                                       </p>
                                     </div>
-                                    <div className="bg-white border border-red-100 rounded-lg p-2.5 space-y-1.5">
-                                      <p className="text-xs text-gray-700 font-medium">
-                                        📱 En celular:
+                                    <div className="bg-white border border-red-100 rounded-lg p-2.5">
+                                      <p className="text-xs text-gray-700 font-medium mb-0.5">
+                                        📱 Celular:
                                       </p>
                                       <p className="text-xs text-gray-600 leading-relaxed">
                                         Toca el ícono en la barra de dirección → Permisos →{' '}
@@ -670,33 +697,185 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                       </p>
                                     </div>
                                   </div>
+                                </div>
 
-                                  <div className="border-t border-red-200 pt-2">
-                                    <p className="text-xs text-gray-500 mb-1.5">── ó ──</p>
-                                    <p className="text-xs text-gray-600 mb-1.5">
-                                      🏪 Recoge gratis en nuestros puestos
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-px bg-gray-200" />
+                                  <span className="text-xs text-gray-400 px-1">o elige en el mapa</span>
+                                  <div className="flex-1 h-px bg-gray-200" />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={handleOpenMap}
+                                  className="flex items-center gap-3 w-full p-3 rounded-xl border-2 border-[#c89b6e] bg-[#fdf8f3] hover:bg-[#f5ede0] transition-all text-left"
+                                >
+                                  <Map className="w-5 h-5 text-[#c89b6e] flex-shrink-0" />
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-800">
+                                      Elegir ubicación en el mapa
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Sin necesidad de GPS
+                                    </p>
+                                  </div>
+                                </button>
+                              </div>
+                            )}
+
+                            {/* STEP B — Map open (draggable, with live cost) */}
+                            {locationState === 'map_open' &&
+                              gpsLat !== null &&
+                              gpsLng !== null && (
+                                <div className="space-y-3">
+                                  {locationSource === 'gps' && (
+                                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                      <Navigation className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                      <p className="text-xs text-green-700 font-medium">
+                                        ✓ Ubicación GPS · puedes ajustar el pin si es necesario
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  <DeliveryMapPicker
+                                    key="map-open"
+                                    lat={gpsLat}
+                                    lng={gpsLng}
+                                    draggable={true}
+                                    height={280}
+                                    onLocationSelect={handleMapLocationUpdate}
+                                  />
+
+                                  {/* Live cost preview */}
+                                  {gpsDistanceKm !== null && !isOutOfRange && (
+                                    <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 space-y-0.5">
+                                      <p className="text-xs text-gray-600">
+                                        📍{' '}
+                                        <span className="font-semibold">
+                                          {gpsDistanceKm.toFixed(1)} km
+                                        </span>{' '}
+                                        del local
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        🚚 Costo de envío:{' '}
+                                        {shippingCost === 0 ? (
+                                          <span className="text-green-600 font-bold">
+                                            Gratis 🎉
+                                          </span>
+                                        ) : (
+                                          <span className="font-bold text-gray-800">
+                                            Bs {shippingCost}
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Out of range warning in map_open */}
+                                  {isOutOfRange && gpsDistanceKm !== null && (
+                                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+                                      <p className="text-xs font-bold text-red-700">
+                                        📍 {gpsDistanceKm.toFixed(1)} km — Fuera de zona de envío
+                                      </p>
+                                      <p className="text-xs text-red-600">
+                                        Máximo {MAX_DELIVERY_DISTANCE_KM} km. Mueve el pin a una
+                                        zona más cercana o cotiza por WhatsApp:
+                                      </p>
+                                      <a
+                                        href={outOfRangeWaUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-center gap-2 w-full bg-[#25d366] hover:bg-[#1fb855] text-white text-xs font-semibold py-2 rounded-lg transition-all"
+                                      >
+                                        <MessageCircle className="w-3.5 h-3.5" />
+                                        Cotizar envío por WhatsApp
+                                      </a>
+                                      <div className="flex items-center gap-2 pt-1">
+                                        <div className="flex-1 h-px bg-red-200" />
+                                        <span className="text-xs text-red-400">ó</span>
+                                        <div className="flex-1 h-px bg-red-200" />
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeliveryMethod('pickup')}
+                                        className="text-xs text-[#c89b6e] font-semibold underline hover:no-underline w-full text-center"
+                                      >
+                                        🏪 Ver opciones de recojo →
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Confirm button (only if within range) */}
+                                  {!isOutOfRange && (
+                                    <button
+                                      type="button"
+                                      onClick={handleConfirmLocation}
+                                      className="w-full bg-[#c89b6e] hover:bg-[#b8895e] text-white font-bold py-2.5 rounded-xl text-sm transition-all"
+                                    >
+                                      ✓ Confirmar esta ubicación
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                            {/* STEP C — Confirmed: smaller static map + summary */}
+                            {locationState === 'confirmed' &&
+                              gpsLat !== null &&
+                              gpsLng !== null && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs font-bold text-green-700">
+                                      ✓ Ubicación de entrega confirmada
                                     </p>
                                     <button
                                       type="button"
-                                      onClick={switchToPickup}
-                                      className="text-xs text-[#c89b6e] font-semibold underline hover:no-underline"
+                                      onClick={handleResetLocation}
+                                      className="text-xs text-gray-500 hover:text-gray-700 underline"
                                     >
-                                      Ver opciones de recojo →
+                                      Cambiar
                                     </button>
+                                  </div>
+
+                                  <DeliveryMapPicker
+                                    key="map-confirmed"
+                                    lat={gpsLat}
+                                    lng={gpsLng}
+                                    draggable={false}
+                                    height={200}
+                                  />
+
+                                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-0.5">
+                                    <p className="text-xs text-green-700">
+                                      📍{' '}
+                                      <span className="font-semibold">
+                                        {gpsDistanceKm?.toFixed(1)} km
+                                      </span>{' '}
+                                      del local
+                                    </p>
+                                    <p className="text-xs text-green-700">
+                                      🚚 Costo de envío:{' '}
+                                      {shippingCost === 0 ? (
+                                        <span className="font-bold">Gratis 🎉</span>
+                                      ) : (
+                                        <span className="font-bold">Bs {shippingCost}</span>
+                                      )}
+                                    </p>
+                                    {mapsLink && (
+                                      <a
+                                        href={mapsLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-block text-xs text-[#c89b6e] hover:underline"
+                                      >
+                                        Ver en Maps →
+                                      </a>
+                                    )}
                                   </div>
                                 </div>
                               )}
 
-                              {/* idle hint */}
-                              {gpsStatus === 'idle' && (
-                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                                  📍 Requerido para calcular el costo de envío exacto
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Address fields — only show when GPS captured and within range */}
-                            {gpsStatus === 'captured' && !isOutOfRange && (
+                            {/* Address + Reference + Recipient — only when confirmed */}
+                            {locationState === 'confirmed' && !isOutOfRange && (
                               <>
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">
@@ -735,12 +914,57 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                     placeholder="Ej: Frente al parque, edificio azul"
                                   />
                                 </div>
+
+                                {/* Recipient info */}
+                                <div className="border-t border-gray-200 pt-3 space-y-3">
+                                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                    ¿Quién recibe el pedido?
+                                  </p>
+
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                      Nombre de quien recibe *
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={recipientName}
+                                      onChange={(e) => setRecipientName(e.target.value)}
+                                      className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-[#c89b6e] focus:outline-none"
+                                      placeholder="Puede ser diferente al tuyo"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                      Teléfono de quien recibe *
+                                    </label>
+                                    <input
+                                      type="tel"
+                                      value={recipientPhone}
+                                      onChange={(e) => {
+                                        setRecipientPhone(e.target.value)
+                                        if (recipientPhoneError) setRecipientPhoneError('')
+                                      }}
+                                      className={`w-full px-3 py-2.5 border-2 rounded-lg text-sm focus:outline-none transition-colors ${
+                                        recipientPhoneError
+                                          ? 'border-red-400 focus:border-red-500'
+                                          : 'border-gray-200 focus:border-[#c89b6e]'
+                                      }`}
+                                      placeholder="Para coordinar la entrega"
+                                    />
+                                    {recipientPhoneError && (
+                                      <p className="mt-1 text-xs text-red-500">
+                                        {recipientPhoneError}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
                               </>
                             )}
                           </div>
                         )}
 
-                        {/* ── Campos: PICKUP ── */}
+                        {/* ── PICKUP ── */}
                         {deliveryMethod === 'pickup' && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 mb-1">
@@ -802,7 +1026,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           <span>Bs {total.toFixed(2)}</span>
                         </div>
 
-                        {/* Shipping line with descriptive label */}
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Envío:</span>
                           {deliveryMethod === 'pickup' ? (
@@ -813,7 +1036,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             <span className="text-red-600 font-medium text-xs">
                               ⚠️ Fuera de zona · cotizar por WhatsApp
                             </span>
-                          ) : gpsStatus === 'captured' ? (
+                          ) : gpsDistanceKm !== null ? (
                             shippingCost === 0 ? (
                               <span className="text-green-600 font-semibold">
                                 🎉 Envío gratis · pedido mayor a Bs {FREE_SHIPPING_THRESHOLD}
@@ -834,7 +1057,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             )
                           ) : (
                             <span className="text-amber-600 font-medium text-xs">
-                              Pendiente GPS
+                              Pendiente ubicación
                             </span>
                           )}
                         </div>
@@ -881,7 +1104,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </p>
                       </div>
 
-                      {/* Selector de método de pago */}
                       <div className="text-left">
                         <p className="text-sm font-semibold text-gray-700 mb-3">
                           Elige cómo pagar:
@@ -1029,7 +1251,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </p>
                       </motion.div>
 
-                      {/* Delivery info en confirmación */}
+                      {/* Delivery info */}
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1048,9 +1270,16 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             {shippingReference && (
                               <p className="text-xs text-gray-500">Ref: {shippingReference}</p>
                             )}
+                            {recipientName && (
+                              <p className="text-xs text-gray-600">
+                                👤 Recibe:{' '}
+                                <span className="font-semibold">{recipientName}</span>
+                                {recipientPhone && ` · ${recipientPhone}`}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-500 pt-0.5">
                               {gpsDistanceKm !== null &&
-                                `Distancia: ${gpsDistanceKm.toFixed(1)} km · `}
+                                `${gpsDistanceKm.toFixed(1)} km · `}
                               Envío:{' '}
                               {shippingCost === 0 ? (
                                 <span className="text-green-600 font-semibold">Gratis 🎉</span>
@@ -1065,7 +1294,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 href={mapsLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-block text-xs text-[#c89b6e] hover:underline mt-0.5"
+                                className="inline-block text-xs text-[#c89b6e] hover:underline"
                               >
                                 Ver mi ubicación en Maps →
                               </a>
@@ -1086,7 +1315,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               href={selectedPickup.mapsUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-block text-xs text-[#c89b6e] hover:underline mt-0.5"
+                              className="inline-block text-xs text-[#c89b6e] hover:underline"
                             >
                               {selectedPickup.mapsLabel}
                             </a>
@@ -1094,7 +1323,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         ) : null}
                       </motion.div>
 
-                      {/* Confirmación + WhatsApp */}
+                      {/* WhatsApp */}
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1145,7 +1374,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </button>
                       </motion.div>
 
-                      {/* Card "Crear cuenta" */}
                       {!isLoggedIn && showAccountCard && (
                         <motion.div
                           initial={{ opacity: 0, y: 20 }}

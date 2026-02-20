@@ -21,3 +21,8 @@ ADD COLUMN IF NOT EXISTS maps_link TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_orders_delivery_method
   ON orders(delivery_method);
+
+-- Recipient info (person who receives the package, may differ from buyer)
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS recipient_name TEXT,
+ADD COLUMN IF NOT EXISTS recipient_phone TEXT;

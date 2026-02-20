@@ -59,5 +59,7 @@ export interface Order {
   gps_lng?: number | null
   gps_distance_km?: number | null
   maps_link?: string | null
+  recipient_name?: string | null
+  recipient_phone?: string | null
   created_at: string
 }
