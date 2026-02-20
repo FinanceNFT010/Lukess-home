@@ -1,0 +1,33 @@
+---
+description: E-commerce business logic — apply when working on cart, checkout, orders, pricing
+globs: ["**/cart/**", "**/checkout/**", "**/orders/**"]
+alwaysApply: false
+---
+
+# E-commerce Rules
+
+## Pricing
+- Currency: Bs (Bolivianos), always show "Bs" prefix
+- Discount: show original price crossed out + discounted price in red
+- Formula: discountedPrice = price * (1 - discount/100)
+
+## Stock Logic
+- In stock: quantity > 10 → green badge "✓ En stock"
+- Low stock: quantity 1-10 → amber badge "⚠️ Pocas unidades"
+- Out of stock: quantity 0 → red badge "🚫 SIN STOCK" + disable add to cart
+
+## Orders
+- Status flow: pending → paid → confirmed → shipped → completed
+- Status cancelled: available from any state
+- sale_type field: 'online' for all landing page orders
+- Always store customer_name, customer_phone (required), customer_email (optional)
+
+## Authentication Rules for Buyers
+- Checkout: REQUIRE login (redirect to auth modal if not logged in)
+- Wishlist: PROMPT to login (non-blocking message), save locally until login
+- Browsing + filtering: NO login required ever
+- /mis-pedidos: require login
+
+## Wishlist Message (when not logged in)
+Show subtle toast: "Inicia sesión para guardar tu wishlist permanentemente. 
+Por ahora está guardada en este dispositivo."

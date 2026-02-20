@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Menu, X, MessageCircle, Search, Heart, ShoppingCart } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Menu, X, MessageCircle, Search, Heart, ShoppingCart, User, ChevronDown, Package, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -10,8 +10,10 @@ import { CartButton } from "@/components/cart/CartButton";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CheckoutModal } from "@/components/cart/CheckoutModal";
 import { WishlistIcon } from "@/components/wishlist/WishlistIcon";
+import { AuthModal } from "@/components/auth/AuthModal";
 import { useCart } from "@/lib/context/CartContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
+import { useAuth } from "@/lib/context/AuthContext";
 
 const WHATSAPP_URL =
   "https://wa.me/59176020369?text=Hola%20Lukess%20Home%2C%20me%20interesa%20conocer%20sus%20productos";
@@ -71,13 +73,28 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const pathname = usePathname();
   const router = useRouter();
-  const { items } = useCart();
+  const { cart } = useCart();
   const { wishlistCount } = useWishlist();
-  
-  const cartItemCount = items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const { isLoggedIn, customerName, signOut } = useAuth();
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const cartItemCount = cart?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+
+  // Cerrar menú usuario al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -248,6 +265,66 @@ export default function Navbar() {
                 <WishlistIcon />
               </div>
 
+              {/* Auth Button */}
+              <div className="hidden lg:block" ref={userMenuRef}>
+                {isLoggedIn ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-gray-800 hover:bg-gray-100 transition-colors"
+                    >
+                      <User className="w-4 h-4 text-primary-600" />
+                      <span className="max-w-[80px] truncate">{customerName}</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                      {isUserMenuOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden"
+                        >
+                          <Link
+                            href="/mis-pedidos"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Package className="w-4 h-4 text-gray-500" />
+                            Mis Pedidos
+                          </Link>
+                          <Link
+                            href="/wishlist"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Heart className="w-4 h-4 text-gray-500" />
+                            Mis Favoritos
+                          </Link>
+                          <div className="h-px bg-gray-100" />
+                          <button
+                            onClick={() => { signOut(); setIsUserMenuOpen(false); }}
+                            className="flex items-center gap-2 w-full px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Cerrar sesión
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-gray-700 border border-gray-300 hover:border-primary-400 hover:text-primary-700 transition-colors"
+                  >
+                    <User className="w-4 h-4" />
+                    Entrar
+                  </button>
+                )}
+              </div>
+
               {/* Cart Button */}
               <div className="hidden lg:block">
                 <CartButton onClick={() => setIsCartOpen(true)} />
@@ -384,6 +461,45 @@ export default function Navbar() {
                   </motion.div>
                 ))}
 
+                {/* Auth button mobile */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: (categories.length + quickLinks.length) * 0.05 + 0.02,
+                    duration: 0.25,
+                  }}
+                  className="pt-1"
+                >
+                  {isLoggedIn ? (
+                    <div className="flex gap-2">
+                      <Link
+                        href="/mis-pedidos"
+                        onClick={() => setIsOpen(false)}
+                        className="flex-1 flex items-center justify-center gap-2 border border-gray-200 text-gray-700 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-gray-50"
+                      >
+                        <Package className="w-4 h-4" />
+                        Pedidos
+                      </Link>
+                      <button
+                        onClick={() => { signOut(); setIsOpen(false); }}
+                        className="flex-1 flex items-center justify-center gap-2 border border-red-200 text-red-500 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-red-50"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Salir
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setIsAuthModalOpen(true); setIsOpen(false); }}
+                      className="w-full flex items-center justify-center gap-2 border-2 border-primary-600 text-primary-700 py-3 rounded-xl text-sm font-bold transition-all hover:bg-primary-50"
+                    >
+                      <User className="w-4 h-4" />
+                      Iniciar sesión / Crear cuenta
+                    </button>
+                  )}
+                </motion.div>
+
                 {/* Wishlist + Cart buttons mobile */}
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -392,7 +508,7 @@ export default function Navbar() {
                     delay: (categories.length + quickLinks.length) * 0.05 + 0.05,
                     duration: 0.25,
                   }}
-                  className="pt-3 flex gap-2"
+                  className="pt-1 flex gap-2"
                 >
                   <Link
                     href="/wishlist"
@@ -478,6 +594,13 @@ export default function Navbar() {
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        mode="login"
       />
     </>
   );

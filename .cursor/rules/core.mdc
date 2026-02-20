@@ -1,0 +1,38 @@
+---
+description: Core rules for Lukess Home Landing Page + E-commerce
+alwaysApply: true
+---
+
+# Lukess Home — Core Rules
+
+## Stack
+- Next.js 16 (App Router), TypeScript strict, Supabase, Tailwind CSS v4, Framer Motion
+- Deployment: Vercel (lukess-home.vercel.app) | DB: same Supabase as inventory system
+
+## Architecture
+- app/page.tsx → homepage (Server Component)
+- app/producto/[id]/ → product detail
+- app/wishlist/ → wishlist page
+- app/mis-pedidos/ → order history (authenticated buyers)
+- components/cart/ → CartDrawer, CartButton, CheckoutModal
+- components/wishlist/ → WishlistButton, WishlistClient, WishlistIcon
+- lib/context/ → CartContext, WishlistContext (global state)
+
+## Code Rules
+- TypeScript strict — never use `any`
+- Server Components by default — `'use client'` only when needed
+- Error handling: try/catch with toast.error() + console.error()
+- All Supabase queries filter by is_active = true for public-facing pages
+
+## Design System
+- Colors: Negro (#333333) primary | Dorado (#c89b6e) accent | Gris (#4a4a4a) secondary
+- Font: Inter (Google Fonts)
+- Animations: Framer Motion, duration 0.3s-0.6s, easeOut
+- NEVER break the premium masculine aesthetic
+- WhatsApp button: bg-[#25d366] text-white always visible
+
+## Business
+- Store: Lukess Home, Mercado Mutualista, Santa Cruz, Bolivia
+- WhatsApp: +591 76020369
+- 3 physical locations
+- Currency: Bs (Bolivianos)

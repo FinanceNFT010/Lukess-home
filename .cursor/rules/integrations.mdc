@@ -1,0 +1,27 @@
+---
+description: External integrations for landing page — GA4, WhatsApp, Resend
+alwaysApply: false
+---
+
+# Integrations — Landing Page
+
+## Google Analytics 4
+- Measurement ID: NEXT_PUBLIC_GA_ID env var
+- Events to track: page_view, view_item, add_to_cart, begin_checkout, purchase
+- Implement via gtag() in layout.tsx with next/script
+
+## WhatsApp Integration
+- Number: +591 76020369 (NEXT_PUBLIC_WHATSAPP_NUMBER)
+- Post-purchase message template:
+  "Hola! Realicé un pedido #[ORDER_ID] por Bs [TOTAL]. Ya realicé el pago por QR. ¿Pueden confirmar?"
+- Floating WhatsApp button: always visible bottom-right on mobile
+
+## Resend (Order Emails)
+- Customer email: order confirmation with items + total
+- Admin email: new order notification to Aldrin
+- Triggered from: checkout Step 2 (when order is created in Supabase)
+
+## Yolo Pago (QR Payment)
+- Static QR image: /public/qr-yolo-pago.png
+- No API integration needed — manual verification by admin
+- Show in Step 2 of CheckoutModal

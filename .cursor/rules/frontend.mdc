@@ -1,0 +1,36 @@
+---
+description: Frontend UI rules for landing page components
+globs: ["**/*.tsx", "**/*.jsx", "**/components/**"]
+alwaysApply: false
+---
+
+# Frontend Rules — Landing Page
+
+## Component Patterns
+- Section components in components/home/
+- Cart components in components/cart/
+- Product components in components/producto/
+- Catalog in components/home/CatalogoClient.tsx (main catalog logic)
+
+## Animations (Framer Motion)
+- Always use variants for stagger animations
+- Fade + slide up for section entries
+- Scale for button interactions
+- Never remove existing animations — enhance them
+
+## Tailwind Conventions
+- Premium dark theme: bg-gray-900, bg-black, bg-zinc-900
+- Accent gold: text-[#c89b6e], border-[#c89b6e]
+- Cards: rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all
+- Images: object-cover w-full h-full (always)
+
+## Cart & Wishlist
+- CartContext: addToCart(product, qty, size, color)
+- WishlistContext: addToWishlist(productId), isInWishlist(productId)
+- Both persist in localStorage (key: lukess-cart, lukess-wishlist)
+- Show toast confirmation on add
+
+## Checkout Flow (3 steps)
+1. Customer data form (name, phone, email optional)
+2. QR payment (Yolo Pago) — creates order in Supabase
+3. Confirmation with confetti + WhatsApp button

@@ -1,0 +1,33 @@
+---
+description: Supabase patterns for landing page — public-facing queries
+globs: ["**/*.sql", "**/supabase/**", "**/lib/supabase/**"]
+alwaysApply: false
+---
+
+# Supabase Rules — Landing Page
+
+## Same Project as Inventory
+URL: https://lrcggpdgrqltqbxqnjgh.supabase.co
+Both projects share tables: products, categories, inventory, orders, order_items
+
+## Public Query Rules
+- Products: always filter `is_active = true` AND `published_to_landing = true`
+- Stock: sum inventory.quantity across all locations
+- Orders: public can INSERT (create order) but NOT SELECT others' orders
+- Buyer profiles: separate from staff profiles (role = 'buyer')
+
+## Key Tables for Landing
+- products → catalog display
+- categories → filter sidebar
+- inventory → stock levels (sum all locations)
+- orders → checkout (INSERT only for public)
+- order_items → checkout items
+- buyer_profiles → authenticated shoppers (future)
+
+## Patterns
+- Use server.ts client for Server Components
+- Use client.ts for interactive components (cart, wishlist)
+- Always use `select('*').eq('is_active', true)` for catalog
+
+## Full Schema
+See @supabase/schema-orders.sql for orders tables
