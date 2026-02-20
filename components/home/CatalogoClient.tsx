@@ -1235,8 +1235,8 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                     </div>
                     </Link>
 
-                    {/* Botones móvil */}
-                    <div className="px-4 pb-4 sm:px-5 sm:pb-5 lg:hidden flex gap-2">
+                    {/* Botones: Ver detalles + WhatsApp (una sola entrada WhatsApp por card) */}
+                    <div className="px-4 pb-4 sm:px-5 sm:pb-5 flex gap-2">
                       <Link
                         href={`/producto/${product.id}`}
                         onClick={(e) => e.stopPropagation()}
