@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import Container from '@/components/ui/Container'
-import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check, Sparkles, Percent, Leaf, Eye } from 'lucide-react'
+import { ShoppingCart, ShoppingBag, Tag, MessageCircle, Plus, Filter, X, Palette, Ruler, Building2, SlidersHorizontal, Check, Sparkles, Percent, Leaf } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import Image from 'next/image'
@@ -11,7 +11,6 @@ import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
 import { FilterSidebar, type Filters } from '@/components/catalogo/FilterSidebar'
 import { ProductBadges } from '@/components/catalogo/ProductBadges'
-import { QuickViewModal } from '@/components/catalogo/QuickViewModal'
 import { WishlistButton } from '@/components/wishlist/WishlistButton'
 
 interface CatalogoClientProps {
@@ -92,8 +91,6 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [displayLimit, setDisplayLimit] = useState(20)
   const [sortOrder, setSortOrder] = useState<'recent' | 'price-asc' | 'price-desc'>('recent')
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null)
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false)
   const { addToCart } = useCart()
   const { ref, inView } = useInView({ 
     triggerOnce: true, 
@@ -406,8 +403,13 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
       return true
     })
 
-    // Ordenar productos
+    // Ordenar productos: sin stock siempre al final
     const sorted = [...filtered].sort((a, b) => {
+      const stockA = getTotalStock(a)
+      const stockB = getTotalStock(b)
+      if (stockA === 0 && stockB > 0) return 1
+      if (stockA > 0 && stockB === 0) return -1
+
       switch (sortOrder) {
         case 'price-asc':
           return getPriceWithDiscount(a) - getPriceWithDiscount(b)
@@ -474,27 +476,21 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
   }
 
   const handleWhatsAppConsult = (product: Product) => {
-    const message = encodeURIComponent(
-      `Hola! Estoy interesado en:\n\n` +
-      `📦 ${product.name}\n` +
-      `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
-      `${product.brand ? `🏷️ Marca: ${product.brand}\n` : ''}` +
-      `${product.colors?.length ? `🎨 Colores: ${product.colors.join(', ')}\n` : ''}` +
-      `\n¿Tienen disponible?`
-    )
+    const isOOS = getTotalStock(product) === 0
+    const message = isOOS
+      ? encodeURIComponent(
+          `Hola! Me interesa este producto 👇\n` +
+          `*${product.name}*\n` +
+          `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
+          `¿Cuándo habrá stock disponible? 🙏`
+        )
+      : encodeURIComponent(
+          `Hola! Me interesa este producto 👇\n` +
+          `*${product.name}*\n` +
+          `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
+          `¿Me pueden dar más información? 🙏`
+        )
     window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
-  }
-
-  const handleQuickView = (e: React.MouseEvent, product: Product) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setQuickViewProduct(product)
-    setIsQuickViewOpen(true)
-  }
-
-  const closeQuickView = () => {
-    setIsQuickViewOpen(false)
-    setTimeout(() => setQuickViewProduct(null), 300)
   }
 
   return (
@@ -1116,16 +1112,14 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         productName={product.name}
                       />
 
-                      {/* Botón Vista Rápida - aparece al hover */}
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
-                        <button
-                          onClick={(e) => handleQuickView(e, product)}
-                          className="bg-white hover:bg-primary-600 text-primary-800 hover:text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-xl border-2 border-primary-600 transition-all duration-300 hover:scale-110 flex items-center gap-2 pointer-events-auto"
-                        >
-                          <Eye className="w-4 h-4" />
-                          Vista Rápida
-                        </button>
-                      </div>
+                      {/* AGOTADO overlay */}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 pointer-events-none">
+                          <span className="bg-red-600 text-white font-black text-sm px-4 py-2 rounded-full tracking-widest shadow-lg">
+                            AGOTADO
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Info */}
@@ -1224,15 +1218,19 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                           )}
                         </div>
                         <div className="text-right">
-                          <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                            stock === 0 
-                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' 
-                              : stock < 10 
-                                ? 'bg-amber-500 text-white shadow-md' 
+                          {isOutOfStock ? (
+                            <span className="text-red-400 text-xs font-semibold">
+                              Agotado · Consultar disponibilidad
+                            </span>
+                          ) : (
+                            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                              stock < 10
+                                ? 'bg-amber-500 text-white shadow-md'
                                 : 'bg-green-500 text-white shadow-md'
-                          }`}>
-                            {stock === 0 ? '🚫 SIN STOCK' : stock < 10 ? '⚠️ Pocas unidades' : '✓ En stock'}
-                          </span>
+                            }`}>
+                              {stock < 10 ? '⚠️ Pocas unidades' : '✓ En stock'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1245,12 +1243,12 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                         onClick={(e) => e.stopPropagation()}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ${
                           isOutOfStock
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none'
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed pointer-events-none opacity-50'
                             : 'bg-primary-800 hover:bg-primary-900 text-white'
                         }`}
                       >
                         <ShoppingCart className="w-4 h-4" />
-                        {isOutOfStock ? 'Sin Stock' : 'Ver detalles'}
+                        {isOutOfStock ? 'Agotado' : 'Ver detalles'}
                       </Link>
                       <button
                         onClick={(e) => {
@@ -1303,16 +1301,6 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
         </motion.div>
       </Container>
 
-      {/* Quick View Modal */}
-      <QuickViewModal
-        product={quickViewProduct}
-        isOpen={isQuickViewOpen}
-        onClose={closeQuickView}
-        getTotalStock={getTotalStock}
-        getDiscount={getDiscount}
-        getPriceWithDiscount={getPriceWithDiscount}
-        hasDiscount={hasDiscount}
-      />
     </section>
   )
 }

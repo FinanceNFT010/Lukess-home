@@ -255,15 +255,11 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                       </button>
                     ))}
                   </div>
-                  {isOutOfStock ? (
+                  {isOutOfStock && (
                     <p className="text-red-400 text-xs mt-1">
                       ❌ Sin stock — puedes consultar por WhatsApp cuándo vuelve
                     </p>
-                  ) : stock <= MIN_STOCK ? (
-                    <p className="text-amber-400 text-xs mt-1">
-                      ⚠️ Pocas unidades disponibles
-                    </p>
-                  ) : null}
+                  )}
                 </div>
               )}
 
@@ -342,13 +338,16 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <Truck className="w-4 h-4 text-[#c89b6e] flex-shrink-0" />
-                  <span className="text-sm font-semibold text-gray-700">Envío a Santa Cruz</span>
+                  <span className="text-sm font-semibold text-gray-700">Envíos en Santa Cruz</span>
                 </div>
                 <p className="text-xs text-gray-500 ml-6">
                   · Gratis en pedidos mayores a Bs {FREE_SHIPPING_THRESHOLD}
                 </p>
                 <p className="text-xs text-gray-500 ml-6">
-                  · Desde Bs 15 según tu distancia (calculado con GPS)
+                  · Desde Bs 5 según distancia GPS
+                </p>
+                <p className="text-xs text-gray-500 ml-6">
+                  · Envío nacional próximamente
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <Store className="w-4 h-4 text-[#c89b6e] flex-shrink-0" />
