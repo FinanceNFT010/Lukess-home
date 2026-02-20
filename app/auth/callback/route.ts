@@ -6,6 +6,15 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
 
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const isLocalEnv = process.env.NODE_ENV === 'development'
+
+  const buildRedirectUrl = (path: string) => {
+    if (isLocalEnv) return `${origin}${path}`
+    if (forwardedHost) return `https://${forwardedHost}${path}`
+    return `${origin}${path}`
+  }
+
   if (code) {
     const supabase = await createClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
@@ -28,9 +37,9 @@ export async function GET(request: Request) {
         }
       )
 
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(buildRedirectUrl(next))
     }
   }
 
-  return NextResponse.redirect(`${origin}/?error=auth`)
+  return NextResponse.redirect(buildRedirectUrl('/?error=auth'))
 }
