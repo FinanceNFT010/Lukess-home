@@ -85,14 +85,22 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   }
 
   const handleWhatsApp = () => {
-    const message = encodeURIComponent(
-      `Hola! Me interesa este producto 👇\n` +
-      `*${product.name}*\n` +
-      `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
-      (selectedSize ? `📏 Talla: ${selectedSize}\n` : '') +
-      `¿Me pueden dar más información? 🙏`
-    )
-    window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
+    let message: string
+    if (stock === 0) {
+      message =
+        'Hola! Me interesa este producto 👇\n' +
+        `*${product.name}*\n` +
+        `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
+        '¿Cuándo habrá stock disponible? 🙏'
+    } else {
+      message =
+        'Hola! Me interesa este producto 👇\n' +
+        `*${product.name}*\n` +
+        `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
+        (selectedSize ? `📏 Talla: ${selectedSize}\n` : '') +
+        '¿Me pueden dar más información? 🙏'
+    }
+    window.open(`https://wa.me/59176020369?text=${encodeURIComponent(message)}`, '_blank')
   }
 
   return (
