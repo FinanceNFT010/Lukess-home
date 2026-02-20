@@ -27,6 +27,7 @@ import { AuthModal } from '@/components/auth/AuthModal'
 import {
   PICKUP_LOCATIONS,
   FREE_SHIPPING_THRESHOLD,
+  MAX_DELIVERY_DISTANCE_KM,
   calculateShippingCost,
   getDistanceFromMutualista,
   getMapsLink,
@@ -58,7 +59,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     name: '',
     phone: '',
     email: '',
-    website: '', // honeypot — bots lo llenan, humanos no lo ven
+    website: '',
   })
   const [marketingConsent, setMarketingConsent] = useState(true)
   const [emailError, setEmailError] = useState('')
@@ -76,14 +77,16 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [shippingAddressError, setShippingAddressError] = useState('')
   const [pickupLocationError, setPickupLocationError] = useState('')
 
-  // Computed shipping cost
-  const shippingCost =
+  // Computed shipping
+  const rawShippingCost: number | 'out_of_range' =
     deliveryMethod === 'pickup'
       ? 0
       : gpsStatus === 'captured' && gpsDistanceKm !== null
         ? calculateShippingCost(gpsDistanceKm, total)
         : 0
 
+  const isOutOfRange = rawShippingCost === 'out_of_range'
+  const shippingCost = isOutOfRange ? 0 : (rawShippingCost as number)
   const orderTotal = total + shippingCost
   const selectedPickup = PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)
 
@@ -154,6 +157,18 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     )
   }
 
+  const switchToPickup = () => {
+    setDeliveryMethod('pickup')
+  }
+
+  // Build the out-of-range WhatsApp cotización link
+  const outOfRangeWaUrl =
+    gpsStatus === 'captured' && mapsLink
+      ? `https://wa.me/59176020369?text=${encodeURIComponent(
+          `Hola! Quiero cotizar un envío.\nPedido:\n${cart.map((i) => `• ${i.product.name} x${i.quantity}`).join('\n')}\nTotal: Bs ${total.toFixed(2)}\n📍 Mi ubicación: ${mapsLink}\n¿Cuánto costaría el envío hasta allí? 🙏`,
+        )}`
+      : ''
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -175,10 +190,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     }
     setEmailError('')
 
-    // Validate delivery fields
     if (deliveryMethod === 'delivery') {
       if (gpsStatus !== 'captured') {
         toast.error('Captura tu ubicación GPS para continuar', { position: 'bottom-center' })
+        return
+      }
+      if (isOutOfRange) {
+        toast.error('Tu ubicación está fuera de la zona de envío', { position: 'bottom-center' })
         return
       }
       if (!shippingAddress.trim() || shippingAddress.trim().length < 10) {
@@ -201,7 +219,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          website: customerData.website, // honeypot
+          website: customerData.website,
           customer_name: customerData.name,
           customer_phone: customerData.phone.replace(/\s/g, ''),
           customer_email: customerData.email,
@@ -267,10 +285,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       )
 
       setStep('qr')
-      toast.success('¡Orden creada! Procede al pago', {
-        position: 'bottom-center',
-        icon: '🎉',
-      })
+      toast.success('¡Orden creada! Procede al pago', { position: 'bottom-center', icon: '🎉' })
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Intenta de nuevo'
       console.error('Error creating order:', error)
@@ -301,6 +316,20 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setGpsStatus('idle')
     setMapsLink('')
   }
+
+  // Whether the "Continuar" button should be disabled
+  const isContinueDisabled =
+    isProcessing ||
+    (deliveryMethod === 'delivery' && (gpsStatus !== 'captured' || isOutOfRange))
+
+  // Label for the "Continuar" button
+  const continueLabel = isProcessing
+    ? 'Procesando...'
+    : deliveryMethod === 'delivery' && gpsStatus !== 'captured'
+      ? '📍 Captura tu GPS para continuar'
+      : deliveryMethod === 'delivery' && isOutOfRange
+        ? '⚠️ Fuera de zona de envío'
+        : 'Continuar al Pago'
 
   return (
     <>
@@ -357,7 +386,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   {/* ── STEP 1: FORMULARIO ── */}
                   {step === 'form' && (
                     <form onSubmit={handleSubmit} className="space-y-6">
-                      {/* Honeypot — oculto para usuarios, visible para bots */}
+                      {/* Honeypot */}
                       <input
                         type="text"
                         name="website"
@@ -450,7 +479,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           ¿Cómo quieres recibir tu pedido?
                         </h3>
 
-                        {/* Cards de método */}
                         <div className="grid grid-cols-2 gap-3">
                           {/* Envío a domicilio */}
                           <button
@@ -472,7 +500,9 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 <p className="text-xs text-green-600 font-semibold">Gratis 🎉</p>
                               ) : (
                                 <>
-                                  <p className="text-xs text-gray-500">Desde Bs 15</p>
+                                  <p className="text-xs text-gray-500">
+                                    Desde Bs 5 · máx. {MAX_DELIVERY_DISTANCE_KM} km
+                                  </p>
                                   <p className="text-xs text-green-600">
                                     ≥ Bs {FREE_SHIPPING_THRESHOLD} → Gratis
                                   </p>
@@ -502,7 +532,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           </button>
                         </div>
 
-                        {/* Campos condicionales: DELIVERY */}
+                        {/* ── Campos: DELIVERY ── */}
                         {deliveryMethod === 'delivery' && (
                           <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 space-y-4">
                             <div className="flex items-center gap-2">
@@ -519,13 +549,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 onClick={handleGps}
                                 disabled={gpsStatus === 'loading'}
                                 className={`flex items-center gap-2 w-full justify-center text-sm px-4 py-2.5 rounded-lg border-2 font-semibold transition-all ${
-                                  gpsStatus === 'captured'
+                                  gpsStatus === 'captured' && !isOutOfRange
                                     ? 'border-green-400 bg-green-50 text-green-700'
-                                    : gpsStatus === 'denied'
+                                    : gpsStatus === 'captured' && isOutOfRange
                                       ? 'border-red-300 bg-red-50 text-red-600'
-                                      : gpsStatus === 'loading'
-                                        ? 'border-amber-300 bg-amber-50 text-amber-600 cursor-wait'
-                                        : 'border-[#c89b6e] bg-[#fdf8f3] text-[#c89b6e] hover:bg-[#f5ede0]'
+                                      : gpsStatus === 'denied'
+                                        ? 'border-red-300 bg-red-50 text-red-600'
+                                        : gpsStatus === 'loading'
+                                          ? 'border-amber-300 bg-amber-50 text-amber-600 cursor-wait'
+                                          : 'border-[#c89b6e] bg-[#fdf8f3] text-[#c89b6e] hover:bg-[#f5ede0]'
                                 }`}
                               >
                                 {gpsStatus === 'loading' ? (
@@ -534,23 +566,24 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                   <Navigation className="w-4 h-4" />
                                 )}
                                 {gpsStatus === 'captured'
-                                  ? '✓ Ubicación capturada'
+                                  ? isOutOfRange
+                                    ? '📍 Ubicación capturada (fuera de zona)'
+                                    : '✓ Ubicación capturada'
                                   : gpsStatus === 'denied'
-                                    ? '⚠ GPS no disponible'
+                                    ? '📍 Ubicación bloqueada'
                                     : gpsStatus === 'loading'
                                       ? 'Obteniendo ubicación...'
                                       : '📍 Compartir mi ubicación GPS'}
                               </button>
 
-                              {/* GPS captured: show distance + cost */}
-                              {gpsStatus === 'captured' && gpsDistanceKm !== null && (
+                              {/* GPS captured — within range */}
+                              {gpsStatus === 'captured' && gpsDistanceKm !== null && !isOutOfRange && (
                                 <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-0.5">
                                   <p className="text-xs text-green-700 font-semibold">
-                                    📍 {gpsLat?.toFixed(4)}, {gpsLng?.toFixed(4)} ·{' '}
-                                    {gpsDistanceKm.toFixed(1)} km del local
+                                    📍 {gpsDistanceKm.toFixed(1)} km del local
                                   </p>
                                   <p className="text-xs text-green-700">
-                                    🚚 Costo de envío:{' '}
+                                    🛵 Costo de envío:{' '}
                                     {shippingCost === 0 ? (
                                       <span className="font-bold">Gratis 🎉</span>
                                     ) : (
@@ -560,73 +593,154 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 </div>
                               )}
 
-                              {/* GPS denied: warning */}
-                              {gpsStatus === 'denied' && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                                  <p className="text-xs text-red-700 font-semibold mb-1">
-                                    ⚠️ GPS no disponible
-                                  </p>
+                              {/* GPS captured — OUT OF RANGE */}
+                              {gpsStatus === 'captured' && isOutOfRange && gpsDistanceKm !== null && (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+                                  <div>
+                                    <p className="text-xs font-bold text-red-700">
+                                      📍 {gpsDistanceKm.toFixed(1)} km del local
+                                    </p>
+                                    <p className="text-xs text-red-600 mt-0.5">
+                                      ⚠️ Tu ubicación está fuera de nuestra zona de envío (máx.{' '}
+                                      {MAX_DELIVERY_DISTANCE_KM} km).
+                                    </p>
+                                  </div>
                                   <p className="text-xs text-red-600">
-                                    Sin ubicación GPS no podemos calcular el costo de envío.
+                                    Para envíos a larga distancia, cotiza por WhatsApp:
                                   </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeliveryMethod('pickup')}
-                                    className="mt-2 text-xs text-[#c89b6e] font-semibold underline hover:no-underline"
+                                  <a
+                                    href={outOfRangeWaUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-2 w-full bg-[#25d366] hover:bg-[#1fb855] text-white text-xs font-semibold py-2 rounded-lg transition-all"
                                   >
-                                    Selecciona &quot;Recoger en tienda&quot; →
-                                  </button>
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    Cotizar envío por WhatsApp
+                                  </a>
+                                  <div className="border-t border-red-200 pt-2">
+                                    <p className="text-xs text-gray-500 mb-1.5">── ó ──</p>
+                                    <p className="text-xs text-gray-600 mb-1.5">
+                                      🏪 Recoge gratis en nuestros puestos
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={switchToPickup}
+                                      className="text-xs text-[#c89b6e] font-semibold underline hover:no-underline"
+                                    >
+                                      Ver opciones de recojo →
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* GPS DENIED — instructions to re-enable */}
+                              {gpsStatus === 'denied' && (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2.5">
+                                  <div>
+                                    <p className="text-xs font-bold text-red-700 mb-1">
+                                      📍 Ubicación bloqueada
+                                    </p>
+                                    <p className="text-xs text-red-600">
+                                      Necesitamos tu ubicación para calcular el costo de envío
+                                      exacto.
+                                    </p>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <p className="text-xs font-semibold text-gray-700">
+                                      Cómo activar la ubicación:
+                                    </p>
+                                    <div className="bg-white border border-red-100 rounded-lg p-2.5 space-y-1.5">
+                                      <p className="text-xs text-gray-700 font-medium">
+                                        🖥️ En computadora (Chrome):
+                                      </p>
+                                      <p className="text-xs text-gray-600 leading-relaxed">
+                                        Haz clic en el ícono 📍 tachado en la barra de dirección
+                                        (arriba a la izquierda) → activa{' '}
+                                        <strong>Ubicación</strong> → recarga la página
+                                      </p>
+                                    </div>
+                                    <div className="bg-white border border-red-100 rounded-lg p-2.5 space-y-1.5">
+                                      <p className="text-xs text-gray-700 font-medium">
+                                        📱 En celular:
+                                      </p>
+                                      <p className="text-xs text-gray-600 leading-relaxed">
+                                        Toca el ícono en la barra de dirección → Permisos →{' '}
+                                        <strong>Ubicación</strong> → Permitir
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="border-t border-red-200 pt-2">
+                                    <p className="text-xs text-gray-500 mb-1.5">── ó ──</p>
+                                    <p className="text-xs text-gray-600 mb-1.5">
+                                      🏪 Recoge gratis en nuestros puestos
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={switchToPickup}
+                                      className="text-xs text-[#c89b6e] font-semibold underline hover:no-underline"
+                                    >
+                                      Ver opciones de recojo →
+                                    </button>
+                                  </div>
                                 </div>
                               )}
 
                               {/* idle hint */}
                               {gpsStatus === 'idle' && (
                                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                                  📍 Requerido para calcular el costo de envío con precisión
+                                  📍 Requerido para calcular el costo de envío exacto
                                 </p>
                               )}
                             </div>
 
-                            {/* Address fields — always show for delivery */}
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                Dirección *
-                              </label>
-                              <input
-                                type="text"
-                                value={shippingAddress}
-                                onChange={(e) => {
-                                  setShippingAddress(e.target.value)
-                                  if (shippingAddressError) setShippingAddressError('')
-                                }}
-                                className={`w-full px-3 py-2.5 border-2 rounded-lg text-sm focus:outline-none transition-colors ${
-                                  shippingAddressError
-                                    ? 'border-red-400 focus:border-red-500'
-                                    : 'border-gray-200 focus:border-[#c89b6e]'
-                                }`}
-                                placeholder="Calle, número, zona/barrio"
-                              />
-                              {shippingAddressError && (
-                                <p className="mt-1 text-xs text-red-500">{shippingAddressError}</p>
-                              )}
-                            </div>
+                            {/* Address fields — only show when GPS captured and within range */}
+                            {gpsStatus === 'captured' && !isOutOfRange && (
+                              <>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                    Dirección *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={shippingAddress}
+                                    onChange={(e) => {
+                                      setShippingAddress(e.target.value)
+                                      if (shippingAddressError) setShippingAddressError('')
+                                    }}
+                                    className={`w-full px-3 py-2.5 border-2 rounded-lg text-sm focus:outline-none transition-colors ${
+                                      shippingAddressError
+                                        ? 'border-red-400 focus:border-red-500'
+                                        : 'border-gray-200 focus:border-[#c89b6e]'
+                                    }`}
+                                    placeholder="Calle, número, zona/barrio"
+                                  />
+                                  {shippingAddressError && (
+                                    <p className="mt-1 text-xs text-red-500">
+                                      {shippingAddressError}
+                                    </p>
+                                  )}
+                                </div>
 
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                Referencia
-                              </label>
-                              <input
-                                type="text"
-                                value={shippingReference}
-                                onChange={(e) => setShippingReference(e.target.value)}
-                                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-[#c89b6e] focus:outline-none"
-                                placeholder="Ej: Frente al parque, edificio azul"
-                              />
-                            </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                    Referencia
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={shippingReference}
+                                    onChange={(e) => setShippingReference(e.target.value)}
+                                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-[#c89b6e] focus:outline-none"
+                                    placeholder="Ej: Frente al parque, edificio azul"
+                                  />
+                                </div>
+                              </>
+                            )}
                           </div>
                         )}
 
-                        {/* Campos condicionales: PICKUP */}
+                        {/* ── Campos: PICKUP ── */}
                         {deliveryMethod === 'pickup' && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 mb-1">
@@ -687,30 +801,36 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           <span>Subtotal:</span>
                           <span>Bs {total.toFixed(2)}</span>
                         </div>
+
+                        {/* Shipping line with descriptive label */}
                         <div className="flex items-center justify-between text-sm">
-                          <div>
-                            <span className="text-gray-600">Envío:</span>
-                            {deliveryMethod === 'delivery' &&
-                              gpsStatus === 'captured' &&
-                              gpsDistanceKm !== null &&
-                              shippingCost > 0 && (
-                                <span className="text-xs text-gray-400 ml-1">
-                                  ({gpsDistanceKm.toFixed(1)} km)
-                                </span>
-                              )}
-                          </div>
+                          <span className="text-gray-600">Envío:</span>
                           {deliveryMethod === 'pickup' ? (
                             <span className="text-green-600 font-semibold">
-                              Gratis · Recojo en tienda
+                              🏪 Retiro gratis en tienda
+                            </span>
+                          ) : isOutOfRange ? (
+                            <span className="text-red-600 font-medium text-xs">
+                              ⚠️ Fuera de zona · cotizar por WhatsApp
                             </span>
                           ) : gpsStatus === 'captured' ? (
                             shippingCost === 0 ? (
                               <span className="text-green-600 font-semibold">
-                                Gratis 🎉
-                                <span className="text-xs font-normal ml-1">(pedido ≥ Bs 400)</span>
+                                🎉 Envío gratis · pedido mayor a Bs {FREE_SHIPPING_THRESHOLD}
                               </span>
                             ) : (
-                              <span className="text-gray-700">Bs {shippingCost.toFixed(2)}</span>
+                              <span className="text-gray-700 font-medium">
+                                🛵 Bs {shippingCost.toFixed(2)} ·{' '}
+                                {shippingCost === 5
+                                  ? 'menos de 1 km'
+                                  : shippingCost === 10
+                                    ? 'menos de 3 km'
+                                    : shippingCost === 15
+                                      ? 'menos de 6 km'
+                                      : shippingCost === 20
+                                        ? 'menos de 10 km'
+                                        : 'menos de 20 km'}
+                              </span>
                             )
                           ) : (
                             <span className="text-amber-600 font-medium text-xs">
@@ -718,6 +838,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             </span>
                           )}
                         </div>
+
                         <div className="border-t border-primary-200 pt-2 flex items-center justify-between">
                           <span className="text-gray-700 font-semibold">Total a Pagar:</span>
                           <span className="text-3xl font-bold text-primary-600">
@@ -740,36 +861,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </span>
                       </label>
 
-                      {/* Submit — disabled if delivery without GPS */}
-                      {deliveryMethod === 'delivery' && gpsStatus === 'denied' ? (
-                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
-                          <p className="text-sm text-red-700 font-semibold mb-2">
-                            GPS requerido para envío a domicilio
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setDeliveryMethod('pickup')}
-                            className="text-sm text-[#c89b6e] font-bold underline hover:no-underline"
-                          >
-                            Cambiar a &quot;Recoger en tienda&quot; →
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="submit"
-                          disabled={
-                            isProcessing ||
-                            (deliveryMethod === 'delivery' && gpsStatus !== 'captured')
-                          }
-                          className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-700 hover:to-primary-800 transform hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                        >
-                          {isProcessing
-                            ? 'Procesando...'
-                            : deliveryMethod === 'delivery' && gpsStatus !== 'captured'
-                              ? '📍 Captura tu GPS para continuar'
-                              : 'Continuar al Pago'}
-                        </button>
-                      )}
+                      <button
+                        type="submit"
+                        disabled={isContinueDisabled}
+                        className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-4 rounded-xl font-bold text-lg hover:from-primary-700 hover:to-primary-800 transform hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                      >
+                        {continueLabel}
+                      </button>
                     </form>
                   )}
 
@@ -789,7 +887,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           Elige cómo pagar:
                         </p>
                         <div className="grid grid-cols-2 gap-3">
-                          {/* Opción QR — seleccionable */}
                           <button
                             type="button"
                             onClick={() => setSelectedPayment('qr')}
@@ -809,7 +906,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             )}
                           </button>
 
-                          {/* Opción Libélula — deshabilitada, placeholder */}
                           <div className="relative group">
                             <div className="p-4 rounded-xl border-2 border-gray-200 text-left pointer-events-none opacity-50 bg-gray-50">
                               <div className="flex items-center gap-1.5 mb-1">
@@ -831,7 +927,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </div>
                       </div>
 
-                      {/* Contenido QR */}
                       <div>
                         <p className="text-gray-700 mb-4 font-semibold">
                           Escanea este QR con tu app de pagos
@@ -954,7 +1049,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                               <p className="text-xs text-gray-500">Ref: {shippingReference}</p>
                             )}
                             <p className="text-xs text-gray-500 pt-0.5">
-                              {gpsDistanceKm !== null && `Distancia: ${gpsDistanceKm.toFixed(1)} km · `}
+                              {gpsDistanceKm !== null &&
+                                `Distancia: ${gpsDistanceKm.toFixed(1)} km · `}
                               Envío:{' '}
                               {shippingCost === 0 ? (
                                 <span className="text-green-600 font-semibold">Gratis 🎉</span>
@@ -998,7 +1094,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         ) : null}
                       </motion.div>
 
-                      {/* Confirmación + WhatsApp opcional */}
+                      {/* Confirmación + WhatsApp */}
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1036,7 +1132,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </div>
                       </motion.div>
 
-                      {/* Botón "Seguir comprando" */}
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1050,7 +1145,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         </button>
                       </motion.div>
 
-                      {/* Card "Crear cuenta" — solo para guests, se cierra con × */}
+                      {/* Card "Crear cuenta" */}
                       {!isLoggedIn && showAccountCard && (
                         <motion.div
                           initial={{ opacity: 0, y: 20 }}
@@ -1118,7 +1213,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         )}
       </AnimatePresence>
 
-      {/* Auth Modal post-purchase */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}

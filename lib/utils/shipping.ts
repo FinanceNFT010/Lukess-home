@@ -19,16 +19,21 @@ export function calculateDistance(
 // Origin: Mercado Mutualista, Santa Cruz de la Sierra
 const ORIGIN = { lat: -17.762778, lng: -63.161667 }
 
-export const FREE_SHIPPING_THRESHOLD = 400 // Bs
+export const FREE_SHIPPING_THRESHOLD = 400  // Bs
+export const MAX_DELIVERY_DISTANCE_KM = 20  // km — beyond this: WhatsApp only
 
-// Cost table by real GPS distance from Mutualista
-export function calculateShippingCost(distanceKm: number, orderSubtotal: number): number {
-  if (orderSubtotal >= FREE_SHIPPING_THRESHOLD) return 0
-  if (distanceKm <= 3) return 15
-  if (distanceKm <= 6) return 20
-  if (distanceKm <= 10) return 25
-  if (distanceKm <= 15) return 35
-  return 45
+// Returns shipping cost in Bs, or 'out_of_range' if > 20 km
+export function calculateShippingCost(
+  distanceKm: number,
+  orderTotal: number,
+): number | 'out_of_range' {
+  if (distanceKm > MAX_DELIVERY_DISTANCE_KM) return 'out_of_range'
+  if (orderTotal >= FREE_SHIPPING_THRESHOLD) return 0
+  if (distanceKm <= 1) return 5
+  if (distanceKm <= 3) return 10
+  if (distanceKm <= 6) return 15
+  if (distanceKm <= 10) return 20
+  return 30  // 10–20 km
 }
 
 export function getDistanceFromMutualista(lat: number, lng: number): number {
