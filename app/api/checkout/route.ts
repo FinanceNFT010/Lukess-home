@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       maps_link,
       recipient_name,
       recipient_phone,
+      delivery_instructions,
       items,
     } = body
 
@@ -198,6 +199,7 @@ export async function POST(req: NextRequest) {
         maps_link: maps_link ?? null,
         recipient_name: recipient_name ?? null,
         recipient_phone: recipient_phone ?? null,
+        delivery_instructions: delivery_instructions ?? null,
       })
       .select()
       .single()

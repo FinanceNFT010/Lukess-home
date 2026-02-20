@@ -26,3 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_delivery_method
 ALTER TABLE orders
 ADD COLUMN IF NOT EXISTS recipient_name TEXT,
 ADD COLUMN IF NOT EXISTS recipient_phone TEXT;
+
+-- Delivery instructions for the courier (optional)
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS delivery_instructions TEXT;

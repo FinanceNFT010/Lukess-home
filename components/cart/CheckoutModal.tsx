@@ -102,6 +102,9 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [recipientPhone, setRecipientPhone] = useState('')
   const [recipientPhoneError, setRecipientPhoneError] = useState('')
 
+  // Delivery instructions (optional)
+  const [deliveryInstructions, setDeliveryInstructions] = useState('')
+
   // Computed shipping
   const rawShippingCost: number | 'out_of_range' =
     deliveryMethod === 'pickup'
@@ -158,6 +161,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setRecipientName('')
         setRecipientPhone('')
         setRecipientPhoneError('')
+        setDeliveryInstructions('')
       }, 300)
     }
   }, [isOpen])
@@ -307,6 +311,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           recipient_name: deliveryMethod === 'delivery' ? recipientName.trim() : null,
           recipient_phone:
             deliveryMethod === 'delivery' ? recipientPhone.replace(/\s/g, '') : null,
+          delivery_instructions:
+            deliveryMethod === 'delivery' ? deliveryInstructions.trim() || null : null,
           items: cart.map((item) => ({
             product_id: item.product.id,
             quantity: item.quantity,
@@ -344,7 +350,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
       const deliveryInfo =
         deliveryMethod === 'delivery'
-          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}\n👤 *Recibe:* ${recipientName} · ${recipientPhone}${mapsLink ? `\n📍 Ubicación exacta: ${mapsLink}` : ''}`
+          ? `\n\n📍 *Dirección:* ${shippingAddress}${shippingReference ? `\nRef: ${shippingReference}` : ''}\n👤 *Recibe:* ${recipientName} · ${recipientPhone}${deliveryInstructions.trim() ? `\n📝 Instrucciones: ${deliveryInstructions.trim()}` : ''}${mapsLink ? `\n📍 Ubicación exacta: ${mapsLink}` : ''}`
           : `\n\n🏪 *Recojo en tienda:* ${PICKUP_LOCATIONS.find((p) => p.id === pickupLocation)?.name ?? pickupLocation}`
 
       setWhatsappMessage(
@@ -389,6 +395,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setMapsLink('')
     setRecipientName('')
     setRecipientPhone('')
+    setDeliveryInstructions('')
   }
 
   const isContinueDisabled =
@@ -604,6 +611,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
                         {/* ── DELIVERY: location flow ── */}
                         {deliveryMethod === 'delivery' && (
+                          <>
                           <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 space-y-4">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-[#c89b6e]" />
@@ -959,9 +967,47 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                     )}
                                   </div>
                                 </div>
+
+                                {/* Delivery instructions — optional */}
+                                <div>
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-semibold text-gray-600">
+                                      📝 Instrucciones para el mensajero
+                                    </label>
+                                    <span className="text-xs text-gray-400">
+                                      {deliveryInstructions.length}/200
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    value={deliveryInstructions}
+                                    onChange={(e) => {
+                                      if (e.target.value.length <= 200)
+                                        setDeliveryInstructions(e.target.value)
+                                    }}
+                                    rows={3}
+                                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-[#c89b6e] focus:outline-none resize-none"
+                                    placeholder='Ej: "Tocar el timbre", "Llamar al llegar", "Casa azul con reja negra"'
+                                  />
+                                </div>
                               </>
                             )}
                           </div>
+
+                          {/* Coordination notice */}
+                          <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+                            <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
+                            <div>
+                              <p className="text-xs font-semibold text-blue-700 mb-0.5">
+                                Importante
+                              </p>
+                              <p className="text-xs text-blue-600 leading-relaxed">
+                                Te avisaremos por WhatsApp antes de enviar tu pedido para
+                                coordinar la entrega. Asegúrate de estar disponible en la
+                                ubicación indicada.
+                              </p>
+                            </div>
+                          </div>
+                          </>
                         )}
 
                         {/* ── PICKUP ── */}
@@ -1277,6 +1323,11 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                                 {recipientPhone && ` · ${recipientPhone}`}
                               </p>
                             )}
+                            {deliveryInstructions && (
+                              <p className="text-xs text-gray-500">
+                                📝 {deliveryInstructions}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-500 pt-0.5">
                               {gpsDistanceKm !== null &&
                                 `${gpsDistanceKm.toFixed(1)} km · `}
@@ -1322,6 +1373,58 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           </div>
                         ) : null}
                       </motion.div>
+
+                      {/* Delivery time banner — only for delivery orders */}
+                      {deliveryMethod === 'delivery' && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.58 }}
+                          className="border-l-4 border-amber-500 bg-gray-50 border border-gray-200 rounded-xl p-4 text-left space-y-2"
+                        >
+                          <p className="text-sm font-bold text-gray-700">
+                            🕐 Tiempo estimado de entrega
+                          </p>
+                          <div className="space-y-1.5 text-xs text-gray-600">
+                            <div className="flex items-start gap-2">
+                              <span className="text-base flex-shrink-0">⚡</span>
+                              <div>
+                                <p className="font-semibold text-gray-700">
+                                  Mínimo: ~30 min – 1 hora
+                                </p>
+                                <p className="text-gray-500">
+                                  Si el puesto está abierto y hay disponibilidad de Yango
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-base flex-shrink-0">📅</span>
+                              <div>
+                                <p className="font-semibold text-gray-700">
+                                  Máximo: hasta 2 días hábiles
+                                </p>
+                                <p className="text-gray-500">
+                                  Si el pedido entra fuera de horario o hay alta demanda
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-base flex-shrink-0">🕐</span>
+                              <div>
+                                <p className="font-semibold text-gray-700">Horario de atención</p>
+                                <p className="text-gray-500">
+                                  Lun–Sáb 8AM–10PM · Dom 9AM–9PM
+                                </p>
+                              </div>
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1">
+                              <p className="text-xs text-amber-700">
+                                ⚠️ Pedidos fuera de horario se procesan al día siguiente
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
 
                       {/* WhatsApp */}
                       <motion.div

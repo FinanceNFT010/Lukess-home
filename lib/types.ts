@@ -61,5 +61,6 @@ export interface Order {
   maps_link?: string | null
   recipient_name?: string | null
   recipient_phone?: string | null
+  delivery_instructions?: string | null
   created_at: string
 }
