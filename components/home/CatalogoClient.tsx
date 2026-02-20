@@ -475,22 +475,21 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
     showAddedToast(product.name)
   }
 
+  const formatPrice = (n: number) => n.toFixed(2)
+
   const handleWhatsAppConsult = (product: Product) => {
-    const isOOS = getTotalStock(product) === 0
-    const message = isOOS
-      ? encodeURIComponent(
-          `Hola! Me interesa este producto 👇\n` +
+    const totalStock = getTotalStock(product)
+    const message =
+      totalStock === 0
+        ? 'Hola! Me interesa este producto 👇\n' +
           `*${product.name}*\n` +
-          `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
-          `¿Cuándo habrá stock disponible? 🙏`
-        )
-      : encodeURIComponent(
-          `Hola! Me interesa este producto 👇\n` +
+          `💰 Precio: Bs ${formatPrice(product.price)}\n` +
+          '¿Cuándo habrá stock disponible? 🙏'
+        : 'Hola! Me interesa este producto 👇\n' +
           `*${product.name}*\n` +
-          `💰 Precio: Bs ${product.price.toFixed(2)}\n` +
-          `¿Me pueden dar más información? 🙏`
-        )
-    window.open(`https://wa.me/59176020369?text=${message}`, '_blank')
+          `💰 Precio: Bs ${formatPrice(product.price)}\n` +
+          '¿Me pueden dar más información? 🙏'
+    window.open(`https://wa.me/59176020369?text=${encodeURIComponent(message)}`, '_blank')
   }
 
   return (
