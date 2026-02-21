@@ -19,6 +19,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       categories(name),
       inventory(
         quantity,
+        reserved_qty,
         location_id,
         locations(name)
       )
@@ -39,7 +40,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       `
       *,
       categories(name),
-      inventory(quantity)
+      inventory(quantity, reserved_qty)
     `
     )
     .eq('category_id', product.category_id)

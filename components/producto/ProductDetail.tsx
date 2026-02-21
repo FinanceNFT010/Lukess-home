@@ -25,7 +25,10 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false)
 
   const getTotalStock = (p: Product): number => {
-    return p.inventory?.reduce((sum, inv) => sum + inv.quantity, 0) || 0
+    return p.inventory?.reduce(
+      (sum, inv) => sum + Math.max(0, inv.quantity - (inv.reserved_qty ?? 0)),
+      0
+    ) || 0
   }
 
   // Funciones para descuentos
