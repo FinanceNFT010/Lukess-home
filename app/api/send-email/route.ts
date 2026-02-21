@@ -23,6 +23,7 @@ interface OrderEmailData {
   shippingCost?: number
   shippingDistance?: number | null
   deliveryAddress?: string | null
+  locationUrl?: string | null
   discountAmount?: number
   discountCode?: string | null
   total: number
@@ -117,9 +118,11 @@ function buildCostBreakdown(data: OrderEmailData): string {
       ? `Bs ${shipping.toFixed(2)}`
       : '<span style="color: #4caf50; font-weight: 700;">Gratis</span>'
 
-  const mapsUrl = data.deliveryAddress
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.deliveryAddress)}`
-    : null
+  const mapsUrl = data.locationUrl
+    ? data.locationUrl
+    : data.deliveryAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.deliveryAddress)}`
+      : null
 
   return `
     <tr>
@@ -306,15 +309,32 @@ function buildStatusEmailHtml(
   return wrapEmail(rows)
 }
 
+// ── CORS headers ──────────────────────────────────────────────────────────────
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 200, headers: CORS_HEADERS })
+}
+
 // ── POST handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const corsHeaders = new Headers(CORS_HEADERS)
+
   try {
     const body = await req.json()
     const { type, orderData } = body as { type: string; orderData: OrderEmailData }
 
     if (!orderData?.customerEmail) {
-      return NextResponse.json({ error: 'Email del cliente requerido' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Email del cliente requerido' },
+        { status: 400, headers: corsHeaders },
+      )
     }
 
     const shortId = orderData.orderId.slice(0, 8).toUpperCase()
@@ -377,7 +397,10 @@ export async function POST(req: NextRequest) {
         break
 
       default:
-        return NextResponse.json({ error: `Tipo de email desconocido: ${type}` }, { status: 400 })
+        return NextResponse.json(
+          { error: `Tipo de email desconocido: ${type}` },
+          { status: 400, headers: corsHeaders },
+        )
     }
 
     const { error } = await resend.emails.send({
@@ -389,13 +412,13 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[send-email] Resend error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true }, { headers: corsHeaders })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Error interno'
     console.error('[send-email] Error:', error)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500, headers: corsHeaders })
   }
 }

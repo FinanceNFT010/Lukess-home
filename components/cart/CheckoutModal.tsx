@@ -408,6 +408,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             shippingCost,
             shippingDistance: gpsDistanceKm,
             deliveryAddress: deliveryMethod === 'delivery' && shippingAddress.trim() ? shippingAddress.trim() : null,
+            locationUrl: deliveryMethod === 'delivery' && mapsLink ? mapsLink : null,
             discountAmount: 0,
             discountCode: null,
             total: orderTotal,
