@@ -226,17 +226,19 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                 )}
               </div>
 
-            {/* Stock */}
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-gray-600" />
-              <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
-                stock === 0
-                  ? 'bg-gray-100 text-gray-600'
-                  : 'bg-green-100 text-green-700'
-              }`}>
-                {stock === 0 ? 'Sin stock' : 'En stock'}
-              </span>
-            </div>
+            {/* Stock — solo visible si agotado o quedan ≤ 5 unidades */}
+            {(stock === 0 || stock <= 5) && (
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-gray-600" />
+                <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+                  stock === 0
+                    ? 'bg-gray-100 text-gray-600'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {stock === 0 ? 'Sin stock' : '⚠️ Últimas unidades disponibles'}
+                </span>
+              </div>
+            )}
 
               {/* Description */}
               {product.description && (
@@ -291,7 +293,6 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                               }
                             }}
                             disabled={sizeAgotada}
-                            title={sizeAgotada ? 'Agotado' : undefined}
                             className={`px-5 py-2 rounded-lg font-semibold transition-all ${
                               sizeAgotada
                                 ? 'opacity-40 cursor-not-allowed line-through bg-gray-100 text-gray-400'
@@ -302,19 +303,11 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                           >
                             {size}
                           </button>
-                          <span className={`text-xs font-medium ${
-                            sizeAgotada
-                              ? 'text-red-400'
-                              : sizeBaja
-                                ? 'text-amber-600'
-                                : 'text-gray-500'
-                          }`}>
-                            {sizeAgotada
-                              ? 'Agotado'
-                              : sizeBaja
-                                ? `⚠️ Últimas ${sizeStock}`
-                                : `(${sizeStock})`}
-                          </span>
+                          {sizeBaja && (
+                            <span className="text-xs font-medium text-amber-600">
+                              ⚠️ Últimas {sizeStock}
+                            </span>
+                          )}
                         </div>
                       )
                     })}
@@ -374,14 +367,14 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                       +
                     </button>
                   </div>
-                  {needsSize && selectedSize && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      Máx. {selectedSizeStock} unidades disponibles en talla {selectedSize}
+                  {needsSize && selectedSize && selectedSizeStock <= 3 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      ⚠️ Últimas {selectedSizeStock} en talla {selectedSize}
                     </p>
                   )}
-                  {!needsSize && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      Máx. {stock} unidades disponibles
+                  {!needsSize && stock <= 5 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      ⚠️ Últimas unidades disponibles
                     </p>
                   )}
                 </div>
@@ -491,9 +484,6 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                               Bs {p.price.toFixed(2)}
                             </p>
                           )}
-                          <span className="text-xs text-gray-500">
-                            Stock: {relatedStock}
-                          </span>
                         </div>
                       </div>
                     </Link>

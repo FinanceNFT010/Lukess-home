@@ -1224,15 +1224,11 @@ export function CatalogoClient({ initialProducts }: CatalogoClientProps) {
                             <span className="text-red-400 text-xs font-semibold">
                               Agotado · Consultar disponibilidad
                             </span>
-                          ) : (
-                            <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                              stock < 10
-                                ? 'bg-amber-500 text-white shadow-md'
-                                : 'bg-green-500 text-white shadow-md'
-                            }`}>
-                              {stock < 10 ? '⚠️ Pocas unidades' : '✓ En stock'}
+                          ) : stock <= 5 ? (
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-500 text-white shadow-md">
+                              ⚠️ Últimas unidades
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </div>

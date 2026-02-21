@@ -317,15 +317,15 @@ export function WishlistClient({ allProducts }: WishlistClientProps) {
                             </span>
                           )}
                         </div>
-                        <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                          stock === 0 
-                            ? 'bg-red-600 text-white shadow-lg' 
-                            : stock < 10 
-                              ? 'bg-amber-500 text-white shadow-md' 
-                              : 'bg-green-500 text-white shadow-md'
-                        }`}>
-                          {stock === 0 ? '🚫 Sin stock' : stock < 10 ? `⚠️ ${stock}` : '✓ Stock'}
-                        </span>
+                        {stock === 0 ? (
+                          <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-600 text-white shadow-lg">
+                            🚫 Sin stock
+                          </span>
+                        ) : stock <= 5 ? (
+                          <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-500 text-white shadow-md">
+                            ⚠️ Últimas unidades
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </Link>
