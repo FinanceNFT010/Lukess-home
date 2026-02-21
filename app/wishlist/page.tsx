@@ -25,6 +25,7 @@ export default async function WishlistPage() {
         )
       `)
       .eq('is_active', true)
+      .eq('published_to_landing', true)
     
     if (error) {
       console.error('❌ Error fetching products:', error)

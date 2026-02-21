@@ -28,6 +28,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     )
     .eq('id', id)
     .eq('is_active', true)
+    .eq('published_to_landing', true)
     .single()
 
   if (!product) {
@@ -46,6 +47,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     )
     .eq('category_id', product.category_id)
     .eq('is_active', true)
+    .eq('published_to_landing', true)
     .neq('id', id)
     .limit(4)
 

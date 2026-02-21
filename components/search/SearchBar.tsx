@@ -47,6 +47,7 @@ export function SearchBar() {
         `)
         .or(`name.ilike.%${query}%,sku.ilike.%${query}%,brand.ilike.%${query}%`)
         .eq('is_active', true)
+        .eq('published_to_landing', true)
         .limit(5)
 
       setResults(data || [])
