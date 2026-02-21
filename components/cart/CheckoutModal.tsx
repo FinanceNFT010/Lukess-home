@@ -18,6 +18,7 @@ import {
   Navigation,
   Loader2,
   Map,
+  Paperclip,
 } from 'lucide-react'
 import { useCart } from '@/lib/context/CartContext'
 import { useAuth } from '@/lib/context/AuthContext'
@@ -59,6 +60,7 @@ type Step = 'form' | 'qr' | 'success'
 type PaymentMethod = 'qr' | 'libelula'
 type DeliveryMethod = 'delivery' | 'pickup'
 type LocationState = 'initial' | 'gps_loading' | 'gps_denied' | 'map_open' | 'confirmed'
+type ReceiptUploadState = 'idle' | 'uploading' | 'success' | 'error'
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const { cart, total, clearCart } = useCart()
@@ -107,6 +109,12 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
   // Delivery instructions (optional)
   const [deliveryInstructions, setDeliveryInstructions] = useState('')
+
+  // Comprobante de pago (opcional)
+  const [receiptUploadState, setReceiptUploadState] = useState<ReceiptUploadState>('idle')
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null)
+  const [receiptError, setReceiptError] = useState('')
 
   // Computed shipping
   const rawShippingCost: number | 'out_of_range' =
@@ -168,6 +176,10 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setRecipientPhone('')
         setRecipientPhoneError('')
         setDeliveryInstructions('')
+        setReceiptUploadState('idle')
+        setReceiptFile(null)
+        setReceiptPreviewUrl(null)
+        setReceiptError('')
       }, 300)
     }
   }, [isOpen])
@@ -237,6 +249,54 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           `Hola! Quiero cotizar un envío 📦\n*Productos:*\n${cart.map((i) => `• ${i.product.name} x${i.quantity}`).join('\n')}\n💰 Total del pedido: Bs ${total.toFixed(2)}\n📍 Ubicación de entrega: ${mapsLink}\n¿Cuánto cuesta el envío hasta allí? 🙏`,
         )}`
       : ''
+
+  const handleReceiptSelect = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setReceiptError('Solo se aceptan imágenes (JPG, PNG, WebP)')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setReceiptError('La imagen no puede superar los 5 MB')
+      return
+    }
+
+    setReceiptError('')
+    setReceiptFile(file)
+    setReceiptPreviewUrl(URL.createObjectURL(file))
+    setReceiptUploadState('uploading')
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('orderId', orderId)
+
+      const res = await fetch('/api/upload-receipt', {
+        method: 'POST',
+        body: form,
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setReceiptUploadState('error')
+        setReceiptError(data.error || 'Error al subir el comprobante')
+        return
+      }
+
+      setReceiptUploadState('success')
+    } catch {
+      setReceiptUploadState('error')
+      setReceiptError('Error de conexión. Intenta de nuevo.')
+    }
+  }
+
+  const handleReceiptReset = () => {
+    setReceiptUploadState('idle')
+    setReceiptFile(null)
+    if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
+    setReceiptPreviewUrl(null)
+    setReceiptError('')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -448,6 +508,11 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setRecipientName('')
     setRecipientPhone('')
     setDeliveryInstructions('')
+    setReceiptUploadState('idle')
+    setReceiptFile(null)
+    if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
+    setReceiptPreviewUrl(null)
+    setReceiptError('')
   }
 
   const isContinueDisabled =
@@ -1383,6 +1448,113 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             contactaremos por WhatsApp para coordinar la entrega.
                           </p>
                         </div>
+                      </div>
+
+                      {/* ── Subir comprobante (opcional) ── */}
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-left space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="w-4 h-4 text-[#c89b6e]" />
+                          <p className="text-sm font-semibold text-gray-700">
+                            Subí tu comprobante de pago
+                          </p>
+                          <span className="text-xs text-gray-400 ml-auto">Opcional</span>
+                        </div>
+
+                        {receiptUploadState === 'idle' && (
+                          <>
+                            <p className="text-xs text-gray-500 leading-relaxed">
+                              Subí la captura de tu comprobante para acelerar la verificación
+                              de tu pago
+                            </p>
+                            <label className="flex items-center justify-center gap-2 w-full border-2 border-[#c89b6e] text-[#c89b6e] hover:bg-[#fdf8f3] font-semibold text-sm py-2.5 rounded-xl cursor-pointer transition-all">
+                              <Paperclip className="w-4 h-4" />
+                              Elegir imagen
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0]
+                                  if (f) handleReceiptSelect(f)
+                                }}
+                              />
+                            </label>
+                            <p className="text-xs text-gray-400 text-center">
+                              Formatos: JPG, PNG, WebP · Máx 5 MB
+                            </p>
+                          </>
+                        )}
+
+                        {receiptUploadState === 'uploading' && (
+                          <div className="flex items-center justify-center gap-3 py-3">
+                            <Loader2 className="w-5 h-5 animate-spin text-[#c89b6e]" />
+                            <p className="text-sm text-gray-600 font-medium">
+                              Subiendo comprobante...
+                            </p>
+                          </div>
+                        )}
+
+                        {receiptUploadState === 'success' && (
+                          <div className="flex items-center gap-3">
+                            {receiptPreviewUrl && (
+                              <img
+                                src={receiptPreviewUrl}
+                                alt="Comprobante"
+                                className="w-16 h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 text-green-600 font-semibold text-sm">
+                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                Comprobante recibido ✓
+                              </div>
+                              {receiptFile && (
+                                <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                  {receiptFile.name}
+                                </p>
+                              )}
+                            </div>
+                            <label className="text-xs text-[#c89b6e] hover:underline cursor-pointer flex-shrink-0">
+                              Cambiar imagen
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0]
+                                  if (f) {
+                                    handleReceiptReset()
+                                    handleReceiptSelect(f)
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+
+                        {receiptUploadState === 'error' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-red-600">
+                              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                              <p className="text-sm font-medium">{receiptError}</p>
+                            </div>
+                            <label className="flex items-center justify-center gap-2 w-full border-2 border-red-300 text-red-600 hover:bg-red-50 font-semibold text-sm py-2 rounded-xl cursor-pointer transition-all">
+                              Reintentar
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0]
+                                  if (f) {
+                                    handleReceiptReset()
+                                    handleReceiptSelect(f)
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
                       </div>
 
                       <button
