@@ -27,6 +27,7 @@ export interface Product {
     quantity: number
     reserved_qty?: number
     location_id: string
+    size?: string | null
     locations?: {
       name: string
     }

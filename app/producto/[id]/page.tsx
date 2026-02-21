@@ -21,6 +21,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         quantity,
         reserved_qty,
         location_id,
+        size,
         locations(name)
       )
     `

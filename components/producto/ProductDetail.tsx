@@ -31,6 +31,18 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
     ) || 0
   }
 
+  const getStockBySize = (p: Product): Record<string, number> => {
+    const result: Record<string, number> = {}
+    if (!p.inventory) return result
+    for (const inv of p.inventory) {
+      const size = inv.size ?? ''
+      if (!size) continue
+      const available = Math.max(0, inv.quantity - (inv.reserved_qty ?? 0))
+      result[size] = (result[size] ?? 0) + available
+    }
+    return result
+  }
+
   // Funciones para descuentos
   const getDiscount = (p: Product): number => {
     return p.discount || p.discount_percentage || 0
@@ -51,16 +63,21 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   }
 
   const stock = getTotalStock(product)
+  const stockBySize = getStockBySize(product)
   const isOutOfStock = stock === 0
   const discount = getDiscount(product)
-  const MIN_STOCK = 5
+  const LOW_STOCK_THRESHOLD = 3
   const needsSize = !!(product.sizes && product.sizes.length > 0)
-  const addToCartDisabled = isOutOfStock || (needsSize && !selectedSize)
+  const selectedSizeStock = needsSize && selectedSize ? (stockBySize[selectedSize] ?? 0) : stock
+  const selectedSizeAgotada = needsSize && !!selectedSize && selectedSizeStock === 0
+  const addToCartDisabled = isOutOfStock || (needsSize && !selectedSize) || selectedSizeAgotada
   const addToCartLabel = isOutOfStock
     ? 'Sin Stock'
     : needsSize && !selectedSize
       ? 'Selecciona una talla'
-      : 'Agregar al Carrito'
+      : selectedSizeAgotada
+        ? 'Talla agotada'
+        : 'Agregar al Carrito'
 
   const handleAddToCart = () => {
     if (isOutOfStock) {
@@ -78,8 +95,13 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
       return
     }
 
-    if (quantity > stock) {
-      toast.error('No hay suficiente stock disponible')
+    if (selectedSizeAgotada) {
+      toast.error('La talla seleccionada está agotada')
+      return
+    }
+
+    if (quantity > selectedSizeStock) {
+      toast.error('No hay suficiente stock disponible para esta talla')
       return
     }
 
@@ -247,22 +269,48 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                     </span>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => !isOutOfStock && setSelectedSize(size)}
-                        disabled={isOutOfStock}
-                        className={`px-5 py-2 rounded-lg font-semibold transition-all ${
-                          isOutOfStock
-                            ? 'opacity-40 cursor-not-allowed line-through'
-                            : selectedSize === size
-                              ? 'bg-primary-600 text-white ring-2 ring-primary-300'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                    {product.sizes.map((size) => {
+                      const sizeStock = stockBySize[size] ?? 0
+                      const sizeAgotada = sizeStock === 0
+                      const sizeBaja = !sizeAgotada && sizeStock <= LOW_STOCK_THRESHOLD
+                      const isSelected = selectedSize === size
+                      return (
+                        <div key={size} className="flex flex-col items-center gap-1">
+                          <button
+                            onClick={() => {
+                              if (!sizeAgotada) {
+                                setSelectedSize(size)
+                                setQuantity(1)
+                              }
+                            }}
+                            disabled={sizeAgotada}
+                            title={sizeAgotada ? 'Agotado' : undefined}
+                            className={`px-5 py-2 rounded-lg font-semibold transition-all ${
+                              sizeAgotada
+                                ? 'opacity-40 cursor-not-allowed line-through bg-gray-100 text-gray-400'
+                                : isSelected
+                                  ? 'bg-primary-600 text-white ring-2 ring-primary-300'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                          <span className={`text-xs font-medium ${
+                            sizeAgotada
+                              ? 'text-red-400'
+                              : sizeBaja
+                                ? 'text-amber-600'
+                                : 'text-gray-500'
+                          }`}>
+                            {sizeAgotada
+                              ? 'Agotado'
+                              : sizeBaja
+                                ? `⚠️ Últimas ${sizeStock}`
+                                : `(${sizeStock})`}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                   {isOutOfStock && (
                     <p className="text-red-400 text-xs mt-1">
@@ -297,7 +345,7 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
               )}
 
               {/* Quantity */}
-              {!isOutOfStock && (
+              {!isOutOfStock && !selectedSizeAgotada && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Cantidad:
@@ -305,18 +353,25 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-xl transition-colors"
+                      disabled={needsSize && !selectedSize}
+                      className="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       −
                     </button>
                     <span className="text-2xl font-bold w-12 text-center">{quantity}</span>
                     <button
-                      onClick={() => setQuantity(Math.min(stock, quantity + 1))}
-                      className="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-xl transition-colors"
+                      onClick={() => setQuantity(Math.min(selectedSizeStock, quantity + 1))}
+                      disabled={needsSize && !selectedSize}
+                      className="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       +
                     </button>
                   </div>
+                  {needsSize && selectedSize && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      Máx. {selectedSizeStock} unidades disponibles en talla {selectedSize}
+                    </p>
+                  )}
                 </div>
               )}
 
