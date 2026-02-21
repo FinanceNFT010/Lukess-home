@@ -80,6 +80,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     website: '',
   })
   const [marketingConsent, setMarketingConsent] = useState(true)
+  const [notifyByEmail, setNotifyByEmail] = useState(true)
+  const [notifyByWhatsapp, setNotifyByWhatsapp] = useState(false)
   const [emailError, setEmailError] = useState('')
 
   // Delivery state
@@ -144,6 +146,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setStep('form')
         setShowConfetti(false)
         setEmailError('')
+        setNotifyByEmail(true)
+        setNotifyByWhatsapp(false)
         setShowAccountCard(true)
         setShowGoogleBanner(true)
         setSelectedPayment('qr')
@@ -248,10 +252,16 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       return
     }
 
-    const emailValidation = validateEmail(customerData.email)
-    if (emailValidation) {
-      setEmailError(emailValidation)
+    if (!customerData.email.trim() && notifyByEmail) {
+      setEmailError('Ingresá tu email para recibir notificaciones por Gmail')
       return
+    }
+    if (customerData.email.trim()) {
+      const emailValidation = validateEmail(customerData.email)
+      if (emailValidation) {
+        setEmailError(emailValidation)
+        return
+      }
     }
     setEmailError('')
 
@@ -299,6 +309,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           customer_phone: customerData.phone.replace(/\s/g, ''),
           customer_email: customerData.email,
           marketing_consent: marketingConsent,
+          notify_email: notifyByEmail,
+          notify_whatsapp: notifyByWhatsapp,
           subtotal: total,
           shipping_cost: shippingCost,
           total: orderTotal,
@@ -344,6 +356,27 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       const shortId = newOrderId.slice(0, 8).toUpperCase()
       setOrderId(newOrderId)
 
+      // Fire-and-forget: enviar email de confirmación sin bloquear el flujo
+      if (notifyByEmail && customerData.email.trim()) {
+        fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'order_confirmation',
+            orderData: {
+              orderId: newOrderId,
+              customerName: customerData.name,
+              customerEmail: customerData.email,
+              customerPhone: customerData.phone,
+              items: cart,
+              total: orderTotal,
+              notifyByEmail: true,
+              notifyByWhatsapp: notifyByWhatsapp,
+            },
+          }),
+        }).catch((err) => console.error('[send-email] fetch error:', err))
+      }
+
       const productList = cart
         .map(
           (item) =>
@@ -385,6 +418,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     onClose()
     setStep('form')
     setCustomerData({ name: '', phone: '', email: '', website: '' })
+    setNotifyByEmail(true)
+    setNotifyByWhatsapp(false)
     setShowConfetti(false)
     setDeliveryMethod('delivery')
     setShippingAddress('')
@@ -566,17 +601,19 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Email *
+                            Email
                           </label>
                           <input
                             type="email"
-                            required
                             value={customerData.email}
                             onChange={(e) => {
                               setCustomerData({ ...customerData, email: e.target.value })
-                              if (emailError) setEmailError(validateEmail(e.target.value))
+                              if (emailError && e.target.value.trim()) setEmailError(validateEmail(e.target.value))
+                              if (emailError && !e.target.value.trim()) setEmailError('')
                             }}
-                            onBlur={(e) => setEmailError(validateEmail(e.target.value))}
+                            onBlur={(e) => {
+                              if (e.target.value.trim()) setEmailError(validateEmail(e.target.value))
+                            }}
                             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-colors ${
                               emailError
                                 ? 'border-red-400 focus:border-red-500'
@@ -586,6 +623,71 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                           />
                           {emailError && (
                             <p className="mt-1 text-xs text-red-500">{emailError}</p>
+                          )}
+                        </div>
+
+                        {/* ── Preferencias de notificación ── */}
+                        <div className="bg-[#111] border border-[#333] rounded-xl p-4 space-y-3">
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                            ¿Cómo querés recibir actualizaciones de tu pedido?
+                          </p>
+
+                          <label
+                            className="flex items-center gap-3 cursor-pointer group"
+                            onClick={() => {
+                              if (notifyByEmail && !notifyByWhatsapp) return
+                              setNotifyByEmail(!notifyByEmail)
+                              if (emailError && notifyByEmail) setEmailError('')
+                            }}
+                          >
+                            <div className={`w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
+                              notifyByEmail
+                                ? 'bg-[#D4AF37] border-[#D4AF37]'
+                                : 'bg-transparent border-gray-500 group-hover:border-gray-300'
+                            }`}>
+                              {notifyByEmail && (
+                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                  <path d="M1 4L3.5 6.5L9 1" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-sm text-gray-200 select-none">
+                              📧 Por Gmail <span className="text-xs text-gray-500">(recomendado)</span>
+                            </span>
+                          </label>
+
+                          <label
+                            className="flex items-center gap-3 cursor-pointer group"
+                            onClick={() => {
+                              if (notifyByWhatsapp && !notifyByEmail) return
+                              setNotifyByWhatsapp(!notifyByWhatsapp)
+                            }}
+                          >
+                            <div className={`w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
+                              notifyByWhatsapp
+                                ? 'bg-[#D4AF37] border-[#D4AF37]'
+                                : 'bg-transparent border-gray-500 group-hover:border-gray-300'
+                            }`}>
+                              {notifyByWhatsapp && (
+                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                  <path d="M1 4L3.5 6.5L9 1" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </div>
+                            <span className="text-sm text-gray-200 select-none">
+                              💬 Por WhatsApp
+                            </span>
+                          </label>
+
+                          {!notifyByEmail && notifyByWhatsapp && (
+                            <p className="text-xs text-gray-500 pl-8">
+                              Usaremos el teléfono que ingresaste arriba
+                            </p>
+                          )}
+                          {notifyByEmail && !notifyByWhatsapp && (
+                            <p className="text-xs text-gray-500 pl-8">
+                              Usaremos el correo que ingresaste arriba
+                            </p>
                           )}
                         </div>
                       </div>

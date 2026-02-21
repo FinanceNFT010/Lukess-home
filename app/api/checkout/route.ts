@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
       customer_phone,
       customer_email,
       marketing_consent,
+      notify_email,
+      notify_whatsapp,
       subtotal,
       shipping_cost,
       total,
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!isValidEmail(customer_email)) {
+    if (customer_email && !isValidEmail(customer_email)) {
       return NextResponse.json(
         { error: 'Email inválido', code: 'invalid_email' },
         { status: 400 }
@@ -120,7 +122,7 @@ export async function POST(req: NextRequest) {
       req.headers.get('x-real-ip') ||
       'unknown'
 
-    if (!checkRateLimit(emailAttempts, customer_email.toLowerCase(), MAX_PER_EMAIL)) {
+    if (customer_email && !checkRateLimit(emailAttempts, customer_email.toLowerCase(), MAX_PER_EMAIL)) {
       return NextResponse.json(
         {
           error: 'Demasiados pedidos. Intenta de nuevo en una hora.',
@@ -189,8 +191,8 @@ export async function POST(req: NextRequest) {
           .single()
         customerId = newCustomer?.id ?? null
       }
-    } else {
-      // Guest checkout — upsert por email sin vincular auth_user_id
+    } else if (customer_email) {
+      // Guest checkout con email — upsert por email
       const { data: guestCustomer } = await supabase
         .from('customers')
         .upsert(
@@ -206,10 +208,22 @@ export async function POST(req: NextRequest) {
         .select('id')
         .single()
       customerId = guestCustomer?.id ?? null
+    } else {
+      // Guest checkout sin email — insert directo
+      const { data: guestCustomer } = await supabase
+        .from('customers')
+        .insert({
+          name: customer_name.trim(),
+          phone: customer_phone,
+          marketing_consent: marketing_consent ?? false,
+        })
+        .select('id')
+        .single()
+      customerId = guestCustomer?.id ?? null
     }
 
-    // Upsert subscriber si hay consentimiento
-    if (marketing_consent) {
+    // Upsert subscriber si hay consentimiento y hay email
+    if (marketing_consent && customer_email) {
       await supabase
         .from('subscribers')
         .upsert(
@@ -248,6 +262,8 @@ export async function POST(req: NextRequest) {
         recipient_name: recipient_name ?? null,
         recipient_phone: recipient_phone ?? null,
         delivery_instructions: delivery_instructions ?? null,
+        notify_email: notify_email ?? true,
+        notify_whatsapp: notify_whatsapp ?? false,
       })
       .select()
       .single()
