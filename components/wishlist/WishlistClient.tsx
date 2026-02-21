@@ -8,6 +8,7 @@ import { Heart, ShoppingCart, Trash2, ExternalLink, MessageCircle, Share2, Check
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCart } from '@/lib/context/CartContext'
 import toast from 'react-hot-toast'
 import { ProductBadges } from '@/components/catalogo/ProductBadges'
@@ -21,6 +22,7 @@ export function WishlistClient({ allProducts }: WishlistClientProps) {
   const { wishlist, removeFromWishlist, clearWishlist } = useWishlist()
   const { isLoggedIn, customerName } = useAuth()
   const { addToCart } = useCart()
+  const router = useRouter()
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
   // Filtrar productos que están en la wishlist
@@ -51,8 +53,24 @@ export function WishlistClient({ allProducts }: WishlistClientProps) {
       toast.error('Producto sin stock', { position: 'bottom-center' })
       return
     }
-    
-    addToCart(product, 1)
+
+    // Tallas válidas = excluir 'Unitalla'
+    const validSizes = (product.sizes ?? []).filter(s => s !== 'Unitalla')
+
+    if (validSizes.length > 1) {
+      // Múltiples tallas → el cliente debe elegir desde la página de detalle
+      toast('Selecciona una talla para este producto', {
+        position: 'bottom-center',
+        icon: '👕',
+      })
+      router.push(`/producto/${product.id}`)
+      return
+    }
+
+    // 0 tallas válidas (accesorio/Unitalla) o exactamente 1 → añadir directo
+    const sizeToAdd = validSizes.length === 1 ? validSizes[0] : undefined
+
+    addToCart(product, 1, sizeToAdd)
     toast.custom((t) => (
       <motion.div
         initial={{ opacity: 0, y: -20, scale: 0.9 }}

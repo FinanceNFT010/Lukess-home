@@ -44,12 +44,6 @@ export function ProductBadges({ isNew, discount, lowStock, isBestSeller, collect
           </span>
         )}
         
-        {lowStock && lowStock > 0 && lowStock < 10 && (
-          <span className="bg-amber-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse">
-            ¡Pocas unidades!
-          </span>
-        )}
-        
         {isBestSeller && (
           <span className="bg-primary-800 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
             <TrendingUp className="w-3 h-3" />

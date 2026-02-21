@@ -1,5 +1,6 @@
 'use client'
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import toast from 'react-hot-toast'
 import { CartItem, Product } from '@/lib/types'
 
 interface CartContextType {
@@ -38,11 +39,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [cart, isLoaded])
 
+  const getAvailableStock = (product: Product, size?: string): number => {
+    if (!product.inventory || product.inventory.length === 0) return 0
+    if (size) {
+      return product.inventory
+        .filter(inv => inv.size === size)
+        .reduce((sum, inv) => sum + Math.max(0, inv.quantity - (inv.reserved_qty ?? 0)), 0)
+    }
+    // Sin talla (accesorios): sumar todo el inventario
+    return product.inventory
+      .reduce((sum, inv) => sum + Math.max(0, inv.quantity - (inv.reserved_qty ?? 0)), 0)
+  }
+
   const addToCart = (product: Product, quantity: number, size?: string, color?: string) => {
     const itemId = `${product.id}-${size || 'nosize'}-${color || 'nocolor'}`
-    
     const existingItem = cart.find(item => item.id === itemId)
-    
+    const currentQtyInCart = existingItem?.quantity ?? 0
+    const availableStock = getAvailableStock(product, size)
+
+    if (availableStock === 0) {
+      toast.error('Producto sin stock disponible', { position: 'bottom-center' })
+      return
+    }
+
+    if (currentQtyInCart + quantity > availableStock) {
+      toast.error(`Solo hay ${availableStock} unidad${availableStock !== 1 ? 'es' : ''} disponible${availableStock !== 1 ? 's' : ''}`, {
+        position: 'bottom-center',
+      })
+      return
+    }
+
     if (existingItem) {
       setCart(cart.map(item => 
         item.id === itemId 
