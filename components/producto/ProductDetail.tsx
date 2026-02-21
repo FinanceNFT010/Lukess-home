@@ -67,8 +67,11 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   const isOutOfStock = stock === 0
   const discount = getDiscount(product)
   const LOW_STOCK_THRESHOLD = 3
-  // Un producto necesita talla solo si tiene tallas definidas y no vacías/nulas
-  const validSizes = (product.sizes ?? []).filter((s: string) => s && s.trim() !== '')
+  // Tallas reales: excluir vacíos y 'Unitalla' (accesorio sin talla real)
+  const INTERNAL_SIZES = ['Unitalla', 'Única', 'Unico']
+  const validSizes = (product.sizes ?? []).filter(
+    (s: string) => s && s.trim() !== '' && !INTERNAL_SIZES.includes(s)
+  )
   const needsSize = validSizes.length > 0
   const selectedSizeStock = needsSize && selectedSize ? (stockBySize[selectedSize] ?? 0) : stock
   const selectedSizeAgotada = needsSize && !!selectedSize && selectedSizeStock === 0
@@ -87,7 +90,7 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
       return
     }
 
-    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+    if (needsSize && !selectedSize) {
       toast.error('Por favor selecciona una talla')
       return
     }
@@ -103,11 +106,13 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
     }
 
     if (quantity > selectedSizeStock) {
-      toast.error('No hay suficiente stock disponible para esta talla')
+      toast.error('No hay suficiente stock disponible')
       return
     }
 
-    addToCart(product, quantity, selectedSize, selectedColor)
+    // Para accesorios (needsSize=false), no pasar size al carrito
+    const sizeForCart = needsSize ? selectedSize : undefined
+    addToCart(product, quantity, sizeForCart, selectedColor || undefined)
     toast.success(`${quantity}x ${product.name} agregado al carrito`)
   }
 
