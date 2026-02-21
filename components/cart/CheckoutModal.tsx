@@ -115,6 +115,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null)
   const [receiptError, setReceiptError] = useState('')
+  const [showReceiptLightbox, setShowReceiptLightbox] = useState(false)
 
   // Computed shipping
   const rawShippingCost: number | 'out_of_range' =
@@ -1497,11 +1498,18 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         {receiptUploadState === 'success' && (
                           <div className="flex items-center gap-3">
                             {receiptPreviewUrl && (
-                              <img
-                                src={receiptPreviewUrl}
-                                alt="Comprobante"
-                                className="w-16 h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0"
-                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowReceiptLightbox(true)}
+                                className="flex-shrink-0 focus:outline-none"
+                                title="Ver imagen completa"
+                              >
+                                <img
+                                  src={receiptPreviewUrl}
+                                  alt="Comprobante"
+                                  className="w-[120px] h-[120px] object-cover rounded-xl border-2 border-gray-200 cursor-pointer hover:border-[#c89b6e] transition-colors shadow-sm"
+                                />
+                              </button>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 text-green-600 font-semibold text-sm">
@@ -1776,7 +1784,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             ¿Ya realizaste el pago QR?
                           </p>
                           <a
-                            href={`https://wa.me/59176020369?text=${whatsappMessage}`}
+                            href={`https://wa.me/59176020369?text=${whatsappMessage}${receiptUploadState === 'success' ? encodeURIComponent('\n📎 Ya subí mi comprobante de pago en el sistema.') : ''}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2 w-full bg-[#25d366] hover:bg-[#1fb855] text-white font-semibold py-3 rounded-xl transition-all shadow-md hover:shadow-lg text-sm"
@@ -1877,6 +1885,38 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         postPurchaseEmail={customerData.email}
         postPurchaseName={customerData.name}
       />
+
+      {/* ── Lightbox comprobante ── */}
+      <AnimatePresence>
+        {showReceiptLightbox && receiptPreviewUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowReceiptLightbox(false)}
+            className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          >
+            <button
+              onClick={() => setShowReceiptLightbox(false)}
+              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-10"
+              aria-label="Cerrar"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <motion.img
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              src={receiptPreviewUrl}
+              alt="Comprobante de pago"
+              style={{ maxWidth: '90vw', maxHeight: '85vh' }}
+              className="rounded-xl shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
