@@ -67,7 +67,9 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
   const isOutOfStock = stock === 0
   const discount = getDiscount(product)
   const LOW_STOCK_THRESHOLD = 3
-  const needsSize = !!(product.sizes && product.sizes.length > 0)
+  // Un producto necesita talla solo si tiene tallas definidas y no vacías/nulas
+  const validSizes = (product.sizes ?? []).filter((s: string) => s && s.trim() !== '')
+  const needsSize = validSizes.length > 0
   const selectedSizeStock = needsSize && selectedSize ? (stockBySize[selectedSize] ?? 0) : stock
   const selectedSizeAgotada = needsSize && !!selectedSize && selectedSizeStock === 0
   const addToCartDisabled = isOutOfStock || (needsSize && !selectedSize) || selectedSizeAgotada
@@ -248,8 +250,8 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                 </div>
               )}
 
-              {/* Sizes */}
-              {product.sizes && product.sizes.length > 0 && (
+              {/* Sizes — solo si el producto tiene tallas válidas (no vacías) */}
+              {needsSize && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-semibold text-gray-700">
@@ -269,7 +271,7 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                     </span>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    {product.sizes.map((size) => {
+                    {validSizes.map((size: string) => {
                       const sizeStock = stockBySize[size] ?? 0
                       const sizeAgotada = sizeStock === 0
                       const sizeBaja = !sizeAgotada && sizeStock <= LOW_STOCK_THRESHOLD
@@ -370,6 +372,11 @@ export function ProductDetail({ product, relatedProducts }: ProductDetailProps) 
                   {needsSize && selectedSize && (
                     <p className="text-xs text-gray-400 mt-2">
                       Máx. {selectedSizeStock} unidades disponibles en talla {selectedSize}
+                    </p>
+                  )}
+                  {!needsSize && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      Máx. {stock} unidades disponibles
                     </p>
                   )}
                 </div>
