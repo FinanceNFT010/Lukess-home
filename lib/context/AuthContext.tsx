@@ -16,6 +16,7 @@ interface AuthContextType {
   isLoggedIn: boolean
   customerName: string | null
   signOut: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoggedIn: false,
   customerName: null,
   signOut: async () => {},
+  signInWithGoogle: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -54,6 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const handleSignInWithGoogle = async () => {
+    const supabase = createClient()
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
+      },
+    })
+  }
+
   const customerName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
@@ -68,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoggedIn: !!user,
         customerName,
         signOut: handleSignOut,
+        signInWithGoogle: handleSignInWithGoogle,
       }}
     >
       {children}

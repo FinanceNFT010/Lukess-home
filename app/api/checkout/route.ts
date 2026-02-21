@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
 
     const {
       website, // honeypot
+      user_id,
       customer_name,
       customer_phone,
       customer_email,
@@ -145,21 +146,67 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Upsert customer
-    const { data: customer } = await supabase
-      .from('customers')
-      .upsert(
-        {
-          email: customer_email,
-          name: customer_name.trim(),
-          phone: customer_phone,
-          marketing_consent: marketing_consent ?? false,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'email', ignoreDuplicates: false }
-      )
-      .select('id')
-      .single()
+    // Upsert customer — si hay user_id (logueado), vincular auth_user_id
+    let customerId: string | null = null
+
+    if (user_id) {
+      // Buscar customer existente por auth_user_id
+      const { data: existingByAuth } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('auth_user_id', user_id)
+        .maybeSingle()
+
+      if (existingByAuth) {
+        customerId = existingByAuth.id
+        // Actualizar datos del formulario en el registro existente
+        await supabase
+          .from('customers')
+          .update({
+            name: customer_name.trim(),
+            phone: customer_phone,
+            email: customer_email,
+            marketing_consent: marketing_consent ?? false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', customerId)
+      } else {
+        // Crear nuevo customer vinculado al auth user
+        const { data: newCustomer } = await supabase
+          .from('customers')
+          .upsert(
+            {
+              email: customer_email,
+              name: customer_name.trim(),
+              phone: customer_phone,
+              auth_user_id: user_id,
+              marketing_consent: marketing_consent ?? false,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'email', ignoreDuplicates: false }
+          )
+          .select('id')
+          .single()
+        customerId = newCustomer?.id ?? null
+      }
+    } else {
+      // Guest checkout — upsert por email sin vincular auth_user_id
+      const { data: guestCustomer } = await supabase
+        .from('customers')
+        .upsert(
+          {
+            email: customer_email,
+            name: customer_name.trim(),
+            phone: customer_phone,
+            marketing_consent: marketing_consent ?? false,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'email', ignoreDuplicates: false }
+        )
+        .select('id')
+        .single()
+      customerId = guestCustomer?.id ?? null
+    }
 
     // Upsert subscriber si hay consentimiento
     if (marketing_consent) {
@@ -179,7 +226,7 @@ export async function POST(req: NextRequest) {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        customer_id: customer?.id || null,
+        customer_id: customerId,
         customer_name: customer_name.trim(),
         customer_phone: customer_phone,
         customer_email: customer_email,
