@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 
 // ── Rate limiting en memoria ──────────────────────────────────────────────────
 // Simple Map por email e IP. Se resetea al reiniciar el servidor.
@@ -242,6 +243,9 @@ export async function POST(req: NextRequest) {
       // y el trigger UPDATE lo reintentará si el admin cambia el estado.
       console.error('[api/checkout] reserve_order_inventory error:', reserveError.message)
     }
+
+    revalidatePath('/', 'page')
+    revalidatePath('/producto/[id]', 'page')
 
     return NextResponse.json({
       orderId: order.id,
