@@ -1,70 +1,117 @@
 # Lukess Home Landing — Active Context
+**Última actualización:** 21/02/2026 03:00 AM — Bloque 3e completo ✅
 
-## Current Block
-**3e** — Inventory sync: auto-decrement + sales history canal
 
-## Completed Blocks
-- **3d** ✅ Checkout GPS-based shipping cost + delivery/pickup options (20 feb 2026)
-  - lib/utils/shipping.ts: Haversine formula, getDistanceFromMutualista, calculateShippingCost, getMapsLink, PICKUP_LOCATIONS
-  - Tabla de costos por distancia GPS: 0-3km→Bs15, 3-6km→Bs20, 6-10km→Bs25, 10-15km→Bs35, +15km→Bs45
-  - GPS REQUERIDO para envío a domicilio — sin GPS no se puede continuar
-  - CheckoutModal: GPS loading spinner, distancia + costo calculado en tiempo real, warning GPS denegado
-  - Botón submit bloqueado hasta capturar GPS (delivery) / seleccionar puesto (pickup)
-  - Step 2 QR: muestra total + distancia en km
-  - Step 3 confirmación: "Ver mi ubicación en Maps →" con link real GPS
-  - WhatsApp message incluye link GPS real
-  - app/api/checkout/route.ts: guarda gps_lat, gps_lng, gps_distance_km, maps_link
-  - components/producto/ProductDetail.tsx: banner "Envío a Santa Cruz · desde Bs 15 · Retiro gratis"
-  - components/cart/CartDrawer.tsx: progress bar hacia envío gratis (≥ Bs 400)
-  - lib/types.ts: Order interface con gps_lat, gps_lng, gps_distance_km, maps_link
-  - ⚠️ PENDIENTE: Ejecutar supabase/migrations/03d_shipping_fields.sql en Supabase SQL Editor
+## Bloque actual
+**Bloque 4a** — Checkout auth: login obligatorio al pagar
 
-- **3a** ✅ Customer Auth: Schema + Checkout upgrade + Order tracking (20 feb 2026)
-  - Nuevas tablas: `customers`, `subscribers`
-  - Nuevos campos en `orders`: marketing_consent, managed_by, internal_notes, discount_percent, customer_id
-  - Auth system: AuthContext, AuthModal (Google + email/password)
-  - CheckoutModal: email obligatorio, marketing consent, post-purchase CTA
-  - /mis-pedidos: modo guest (búsqueda por email) + modo autenticado
-  - Navbar: botón Entrar / dropdown usuario logueado
-  - ⚠️ PENDIENTE: Ejecutar migraciones SQL en Supabase Dashboard
-    (ver SQL en BLOCK_3a_MIGRATIONS.sql o en el historial del chat)
 
-- **3c** ✅ Checkout security + QR improvements + Libélula placeholder (20 feb 2026)
-  - app/api/checkout/route.ts: validaciones server-side + anti-spam
-  - Honeypot field en formulario (campo 'website' oculto)
-  - Rate limiting en memoria: 3 por email / 5 por IP por hora
-  - Validaciones: nombre ≥3 chars, teléfono 7-8 dígitos, email, total > 0, items no vacío
-  - Orden creada con SERVICE_ROLE_KEY (no anon key) desde el servidor
-  - CheckoutModal: WhatsApp botón opcional (no automático)
-  - CheckoutModal: Card "Crear cuenta" con botón × explícito (no se auto-cierra)
-  - CheckoutModal: Botón "Seguir comprando" limpia carrito y cierra modal
-  - CheckoutModal: Selector de método de pago — QR activo, Libélula disabled+placeholder
-  - ⚠️ PENDIENTE: Agregar SUPABASE_SERVICE_ROLE_KEY a Vercel Environment Variables
+## Bloques completados ✅
+- **3a** ✅ Customer Auth: Schema + Checkout upgrade + Order tracking
+          (20 feb 2026)
+  · Tablas: customers, subscribers
+  · Campos en orders: marketing_consent, managed_by, internal_notes,
+    discount_percent, customer_id
+  · AuthContext, AuthModal (Google + email/password)
+  · CheckoutModal: email obligatorio, marketing consent, post-purchase CTA
+  · /mis-pedidos: modo guest (búsqueda email) + modo autenticado
+  · Navbar: botón Entrar / dropdown usuario logueado
 
 - **3b** ✅ Wishlist sync: localStorage → Supabase (20 feb 2026)
-  - Nueva tabla: `wishlists` (user_id, product_id, RLS habilitado)
-  - lib/services/wishlistService.ts: get, add, remove, merge, clear
-  - WishlistContext: sync con Supabase para usuarios logueados, localStorage para guests
-  - Merge automático de localStorage → Supabase al iniciar sesión
-  - AuthModal: Google OAuth activo (eliminado guard "Próximamente"), spinner "Redirigiendo a Google..."
-  - WishlistClient: banner "guardados en tu cuenta" (logueado) / "sesión actual + botón login" (guest)
-  - layout.tsx: AuthProvider ahora envuelve WishlistProvider (orden correcto)
-  - ⚠️ PENDIENTE: Ejecutar migración SQL en Supabase Dashboard
-    (ver supabase/migrations/03b_wishlist_sync.sql)
+  · Tabla: wishlists (user_id, product_id, RLS habilitado)
+  · lib/services/wishlistService.ts: get, add, remove, merge, clear
+  · WishlistContext: sync Supabase logueados / localStorage guests
+  · Merge automático localStorage → Supabase al iniciar sesión
+  · Google OAuth activo en AuthModal
+
+- **3c** ✅ Checkout security + QR + Libélula placeholder (20 feb 2026)
+  · app/api/checkout/route.ts: validaciones server-side completas
+  · Honeypot field (campo 'website' oculto anti-bots)
+  · Rate limiting: 3 por email / 5 por IP por hora
+  · Validaciones: nombre ≥3 chars, teléfono 7-8 dígitos, total > 0
+  · Orden creada con SUPABASE_SERVICE_ROLE_KEY (server-side)
+  · Selector método de pago: QR activo, Libélula disabled+placeholder
+
+- **3d** ✅ Checkout GPS shipping cost + delivery/pickup (20 feb 2026)
+  · lib/utils/shipping.ts: fórmula Haversine, calculateShippingCost
+  · GPS REQUERIDO para envío a domicilio
+  · CheckoutModal: GPS spinner, distancia + costo en tiempo real
+  · Step 3 confirmación: link real GPS a Google Maps
+  · Tabla costos → ver sección "Costos de envío" abajo
+
+- **3e-A** ✅ Sistema reservas inventario completo (21 feb 2026)
+  · RPC reserve_order_inventory llamado desde api/checkout/route.ts
+    inmediatamente después de crear order + order_items
+  · revalidatePath('/', 'page') + revalidatePath('/producto/[id]', 'page')
+    invalidan caché Next.js post-reserva → landing refleja stock real
+  · Stock disponible = quantity - reserved_qty en tiempo real
+  · Dar "ya pagué" → reserved_qty sube → landing muestra menos stock
+  · Cancelar pedido → reserved_qty se libera → stock vuelve
+  · Completar pedido → quantity baja definitivamente + historial ventas
+  · Prioridad: Puesto 1 → Puesto 2 → Puesto 3 → Bodega Central
+
+- **3e-B** ✅ Per-size stock en landing (21 feb 2026)
+  · getStockBySize(): agrupa inventory por talla, suma disponible
+    de todas las ubicaciones para esa talla
+  · Tallas agotadas → disabled + line-through + badge "Agotado"
+  · Tallas con 1-3 unidades → "⚠️ Últimas X unidades"
+  · Cantidad máxima = stock de la talla seleccionada (no total)
+  · Cambiar talla → resetea cantidad a 1 automáticamente
+  · Botón "Agregar al carrito":
+    - Sin talla seleccionada → "Selecciona una talla"
+    - Talla agotada         → "Talla agotada" (disabled)
+    - Normal                → "Agregar al carrito"
+
 
 ## Project URLs
 - Landing: https://lukess-home.vercel.app
 - Supabase (compartido): https://supabase.com/dashboard/project/lrcggpdgrqltqbxqnjgh
+- Dashboard: c:\LukessHome\lukess-inventory-system
+- Landing local: c:\LukessHome\pagina web\prueba
 
-## Pending Blocks (Landing)
-3e → Inventory sync: auto-decrement + sales history canal
-9  → GA4 + SEO dinámico + pulido final
 
-## Important Notes
-- Mismo Supabase que el sistema de inventario
-- published_to_landing = true requerido para que productos aparezcan
-- Wishlist: Supabase para logueados, localStorage para guests
-- Carrito: localStorage (no necesita auth)
-- Google OAuth: configurado en Supabase Dashboard → Auth → Providers → Google
+## Costos de envío
+| Distancia   | Costo  | Referencia              |
+|-------------|--------|-------------------------|
+| 0 - 1 km    | Bs 5   | Dentro del mercado      |
+| 1 - 3 km    | Bs 10  | Zona centro cercana     |
+| 3 - 6 km    | Bs 15  | Zona media              |
+| 6 - 10 km   | Bs 20  | Zona alejada            |
+| 10 - 20 km  | Bs 30  | Límite del servicio     |
+| +20 km      | ❌     | WhatsApp para cotizar   |
+| ≥ Bs 400    | Gratis | Hasta 20km              |
+
+
+## ⚠️ Lecciones críticas aprendidas (20/02/2026)
+- SIEMPRE verificar proyecto correcto en Cursor antes de cualquier prompt
+  Landing = c:\LukessHome\pagina web\prueba
+  Si Cursor dice que ProductDetail.tsx no existe → proyecto equivocado
+- Bugs de stock → verificar en SQL Editor PRIMERO antes de tocar código
+- Después de git push → esperar deploy Vercel y probar manualmente
+- revalidatePath es OBLIGATORIO en cualquier route que modifique stock
+- Nuevo chat en Cursor por cada bloque SIN EXCEPCIONES
+
+
+## Bloques pendientes
+4a  → Checkout: login obligatorio al pagar
+4b  → Mis Pedidos: /mis-pedidos funcional con historial real
+5   → Toggle published_to_landing
+6a  → Emails Resend: confirmación al cliente post-compra
+6b  → Emails Resend: notificación admin + cambios de estado
+7   → WhatsApp Business API
+8   → Reportes ventas online vs físico
+9   → GA4 + SEO dinámico + pulido final
+
+
+## Notas técnicas
+- Mismo Supabase que sistema de inventario (compartido)
+- published_to_landing = true requerido para aparecer en tienda
+- Wishlist: Supabase para logueados / localStorage para guests
+- Carrito: localStorage (no requiere auth)
+- Google OAuth: configurado en Supabase → Auth → Providers → Google
 - Auth callback: /auth/callback (ya creado)
-- NEXT_PUBLIC_SITE_URL no está en .env.local — agregar para OAuth correcto
+- NEXT_PUBLIC_SITE_URL → pendiente agregar en Vercel (OAuth correcto)
+- MCP Supabase: ON solo en bloques con SQL
+- MCP Vercel: ON solo si hay error de deploy
+- Modelo: Claude Sonnet 4.6, Max Mode OFF por defecto
+- Nuevo chat en Cursor por cada bloque
