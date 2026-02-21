@@ -33,6 +33,9 @@ interface OrderEmailData {
   shippingDistance?: number | null
   deliveryAddress?: string | null
   locationUrl?: string | null
+  deliveryInstructions?: string | null
+  deliveryMethod?: 'delivery' | 'pickup'
+  hasReceipt?: boolean
   discountAmount?: number
   discountCode?: string | null
   total: number
@@ -331,6 +334,124 @@ function buildStatusEmailHtml(
   return wrapEmail(rows)
 }
 
+function buildAdminNewOrderHtml(data: OrderEmailData): string {
+  const shortId = data.orderId.slice(0, 8).toUpperCase()
+  const isDelivery = data.deliveryMethod === 'delivery'
+  const deliveryLabel = isDelivery ? 'Delivery' : 'Recojo en tienda'
+
+  const receiptSection = data.hasReceipt
+    ? `
+      <tr>
+        <td style="padding: 20px 40px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a2a1a; border: 1px solid #2d5a2d; border-radius: 8px; overflow: hidden;">
+            <tr>
+              <td style="padding: 16px 20px;">
+                <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #4caf50;">📎 Comprobante de pago</p>
+                <p style="margin: 0 0 12px; font-size: 13px; color: #aaa; line-height: 1.5;">El cliente subió un comprobante. Revisá la imagen en el sistema de inventario para verificar.</p>
+                <a href="https://lukess-inventory-system.vercel.app/pedidos" target="_blank" style="display: inline-block; background-color: #4caf50; color: #111; font-size: 13px; font-weight: 700; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+                  Ver en sistema de inventario →
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    `
+    : `
+      <tr>
+        <td style="padding: 20px 40px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #2a1a1a; border: 1px solid #6a2d2d; border-radius: 8px; overflow: hidden;">
+            <tr>
+              <td style="padding: 16px 20px;">
+                <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #f87171;">⚠️ Sin comprobante</p>
+                <p style="margin: 0; font-size: 13px; color: #aaa; line-height: 1.5;">El cliente no subió comprobante. Verificá el pago directamente en la app del banco antes de confirmar.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    `
+
+  const rows = `
+    ${buildHeader()}
+    <tr>
+      <td style="padding: 20px 40px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #2a1f0a; border: 2px solid #D4AF37; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="padding: 14px 20px; text-align: center;">
+              <p style="margin: 0; font-size: 15px; font-weight: 700; color: #D4AF37;">🛎️ Nuevo pedido — Verificar pago</p>
+              <p style="margin: 6px 0 0; font-size: 13px; color: #c8a44a; line-height: 1.4;">⚠️ Verificá el pago en la app del banco antes de confirmar</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    ${buildOrderNumber(data.orderId)}
+    <tr>
+      <td style="padding: 20px 40px 0;">
+        <p style="margin: 0 0 12px; font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 1.5px;">Datos del cliente</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #333; border-radius: 8px; overflow: hidden;">
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px; width: 140px;">Cliente</td>
+            <td style="padding: 10px 16px; color: #e0e0e0; font-size: 13px; font-weight: 600;">${data.customerName}</td>
+          </tr>
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Email</td>
+            <td style="padding: 10px 16px; color: #e0e0e0; font-size: 13px;">${data.customerEmail}</td>
+          </tr>
+          ${data.customerPhone ? `
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Teléfono</td>
+            <td style="padding: 10px 16px; color: #e0e0e0; font-size: 13px;">${data.customerPhone}</td>
+          </tr>
+          ` : ''}
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Total</td>
+            <td style="padding: 10px 16px; color: #D4AF37; font-size: 15px; font-weight: 900;">Bs ${data.total.toFixed(2)}</td>
+          </tr>
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Entrega</td>
+            <td style="padding: 10px 16px; color: #e0e0e0; font-size: 13px;">${deliveryLabel}</td>
+          </tr>
+          ${isDelivery && data.deliveryAddress ? `
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Dirección</td>
+            <td style="padding: 10px 16px; color: #e0e0e0; font-size: 13px;">${data.deliveryAddress}</td>
+          </tr>
+          ` : ''}
+          ${isDelivery && data.locationUrl ? `
+          <tr style="background-color: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Ubicación GPS</td>
+            <td style="padding: 10px 16px; font-size: 13px;">
+              <a href="${data.locationUrl}" target="_blank" style="color: #4caf50; text-decoration: none; font-weight: 600;">📍 Ver en Maps →</a>
+            </td>
+          </tr>
+          ` : ''}
+          ${isDelivery && data.deliveryInstructions ? `
+          <tr style="background-color: #1a1a1a;">
+            <td style="padding: 10px 16px; color: #888; font-size: 13px;">Instrucciones</td>
+            <td style="padding: 10px 16px; color: #e0e0e0; font-size: 13px;">${data.deliveryInstructions}</td>
+          </tr>
+          ` : ''}
+        </table>
+      </td>
+    </tr>
+    ${data.items && data.items.length > 0 ? buildItemsTable(data.items) : ''}
+    ${receiptSection}
+    <tr>
+      <td style="padding: 24px 40px 0; text-align: center;">
+        <a href="https://lukess-inventory-system.vercel.app/pedidos" target="_blank" style="display: inline-block; background-color: #D4AF37; color: #111; font-size: 14px; font-weight: 900; padding: 14px 32px; border-radius: 8px; text-decoration: none; letter-spacing: 0.5px;">
+          Ir al sistema de inventario →
+        </a>
+        <p style="margin: 10px 0 0; font-size: 11px; color: #555;">lukess-inventory-system.vercel.app/pedidos · Pedido #${shortId}</p>
+      </td>
+    </tr>
+    ${buildFooter()}
+  `
+
+  return wrapEmail(rows)
+}
+
 // ── CORS headers ──────────────────────────────────────────────────────────────
 
 const CORS_HEADERS = {
@@ -418,6 +539,11 @@ export async function POST(req: NextRequest) {
         )
         break
 
+      case 'admin_new_order':
+        subject = `🛎️ Nuevo pedido #${shortId} — Verificar pago`
+        html = buildAdminNewOrderHtml(orderData)
+        break
+
       default:
         return NextResponse.json(
           { error: `Tipo de email desconocido: ${type}` },
@@ -425,9 +551,14 @@ export async function POST(req: NextRequest) {
         )
     }
 
+    const recipient =
+      type === 'admin_new_order'
+        ? (process.env.ADMIN_EMAIL ?? 'financenft01@gmail.com')
+        : orderData.customerEmail
+
     const { error } = await resend.emails.send({
       from: 'Lukess Home <onboarding@resend.dev>',
-      to: orderData.customerEmail,
+      to: recipient,
       subject,
       html,
     })

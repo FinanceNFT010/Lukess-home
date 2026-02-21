@@ -486,6 +486,34 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId }),
     }).catch((err) => console.error('[reserve-order] fetch error:', err))
+
+    // Fire-and-forget: notificar al admin del nuevo pedido
+    fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'admin_new_order',
+        orderData: {
+          orderId,
+          customerName: customerData.name,
+          customerEmail: customerData.email,
+          customerPhone: customerData.phone,
+          items: cart,
+          subtotal: total,
+          shippingCost,
+          shippingDistance: gpsDistanceKm,
+          deliveryAddress:
+            deliveryMethod === 'delivery' && shippingAddress.trim()
+              ? shippingAddress.trim()
+              : null,
+          locationUrl: deliveryMethod === 'delivery' && mapsLink ? mapsLink : null,
+          deliveryInstructions: deliveryInstructions ?? null,
+          total: orderTotal,
+          deliveryMethod,
+          hasReceipt: receiptUploadState === 'success',
+        },
+      }),
+    }).catch((err) => console.error('[admin-email] fetch error:', err))
   }
 
   const handleContinueShopping = () => {
