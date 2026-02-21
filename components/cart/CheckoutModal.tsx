@@ -356,27 +356,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       const shortId = newOrderId.slice(0, 8).toUpperCase()
       setOrderId(newOrderId)
 
-      // Fire-and-forget: enviar email de confirmación sin bloquear el flujo
-      if (notifyByEmail && customerData.email.trim()) {
-        fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'order_confirmation',
-            orderData: {
-              orderId: newOrderId,
-              customerName: customerData.name,
-              customerEmail: customerData.email,
-              customerPhone: customerData.phone,
-              items: cart,
-              total: orderTotal,
-              notifyByEmail: true,
-              notifyByWhatsapp: notifyByWhatsapp,
-            },
-          }),
-        }).catch((err) => console.error('[send-email] fetch error:', err))
-      }
-
       const productList = cart
         .map(
           (item) =>
@@ -411,6 +390,33 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const handlePaymentConfirmed = () => {
     setStep('success')
     setShowConfetti(true)
+
+    // Fire-and-forget: email de confirmación al hacer click en "Ya Pagué"
+    if (notifyByEmail && customerData.email.trim()) {
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order_confirmation',
+          orderData: {
+            orderId,
+            customerName: customerData.name,
+            customerEmail: customerData.email,
+            customerPhone: customerData.phone,
+            items: cart,
+            subtotal: total,
+            shippingCost,
+            shippingDistance: gpsDistanceKm,
+            deliveryAddress: deliveryMethod === 'delivery' && shippingAddress.trim() ? shippingAddress.trim() : null,
+            discountAmount: 0,
+            discountCode: null,
+            total: orderTotal,
+            notifyByEmail: true,
+            notifyByWhatsapp,
+          },
+        }),
+      }).catch((err) => console.error('[send-email] fetch error:', err))
+    }
   }
 
   const handleContinueShopping = () => {
