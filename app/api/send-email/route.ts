@@ -3,14 +3,23 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Acepta items de la landing (CartItem) y del inventario (JOIN de Supabase)
 interface OrderItem {
-  product: {
-    name: string
-    price: number
-  }
-  quantity: number
+  // Landing: item.product.name / item.product.price
+  product?: { name?: string; price?: number }
+  // Inventario JOIN: item.products.name
+  products?: { name?: string }
+  // Landing alternativo: item.name / item.price
+  name?: string
+  price?: number
+  // Inventario: item.unit_price
+  unit_price?: number
+  // Ambas fuentes
+  quantity?: number
+  qty?: number
   size?: string | null
   color?: string | null
+  variant?: string | null
 }
 
 interface OrderEmailData {
@@ -62,15 +71,28 @@ function buildOrderNumber(orderId: string): string {
 function buildItemsTable(items: OrderItem[]): string {
   const rows = items
     .map((item) => {
-      const details = [item.size, item.color].filter(Boolean).join(' · ')
+      const productName =
+        item.name ??
+        item.products?.name ??
+        item.product?.name ??
+        'Producto'
+      const unitPrice =
+        item.unit_price ??
+        item.price ??
+        item.product?.price ??
+        0
+      const qty = item.quantity ?? item.qty ?? 1
+      const size = item.size ?? item.variant ?? null
+      const color = item.color ?? null
+      const details = [size, color].filter(Boolean).join(' · ')
       return `
         <tr>
           <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #e0e0e0; font-size: 14px;">
-            ${item.product.name}${details ? `<br><span style="color: #888; font-size: 12px;">${details}</span>` : ''}
+            ${productName}${details ? `<br><span style="color: #888; font-size: 12px;">${details}</span>` : ''}
           </td>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #e0e0e0; text-align: center; font-size: 14px;">${item.quantity}</td>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #e0e0e0; text-align: right; font-size: 14px; white-space: nowrap;">Bs ${item.product.price.toFixed(2)}</td>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #D4AF37; text-align: right; font-size: 14px; font-weight: bold; white-space: nowrap;">Bs ${(item.product.price * item.quantity).toFixed(2)}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #e0e0e0; text-align: center; font-size: 14px;">${qty}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #e0e0e0; text-align: right; font-size: 14px; white-space: nowrap;">Bs ${unitPrice.toFixed(2)}</td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #2a2a2a; color: #D4AF37; text-align: right; font-size: 14px; font-weight: bold; white-space: nowrap;">Bs ${(unitPrice * qty).toFixed(2)}</td>
         </tr>
       `
     })
