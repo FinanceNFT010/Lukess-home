@@ -418,6 +418,13 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         }),
       }).catch((err) => console.error('[send-email] fetch error:', err))
     }
+
+    // Fire-and-forget: reservar stock solo cuando el cliente confirma el pago
+    fetch('/api/reserve-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId }),
+    }).catch((err) => console.error('[reserve-order] fetch error:', err))
   }
 
   const handleContinueShopping = () => {

@@ -294,19 +294,6 @@ export async function POST(req: NextRequest) {
 
     if (itemsError) throw itemsError
 
-    // Reservar inventario ahora que los order_items ya existen.
-    // El trigger INSERT no puede hacerlo porque dispara antes de que se
-    // inserten los items. Llamamos el RPC directamente después de ambos inserts.
-    const { error: reserveError } = await supabase.rpc('reserve_order_inventory', {
-      p_order_id: order.id,
-    })
-
-    if (reserveError) {
-      // No es fatal: el pedido se creó; la reserva fallará silenciosamente
-      // y el trigger UPDATE lo reintentará si el admin cambia el estado.
-      console.error('[api/checkout] reserve_order_inventory error:', reserveError.message)
-    }
-
     revalidatePath('/', 'page')
     revalidatePath('/producto/[id]', 'page')
 
