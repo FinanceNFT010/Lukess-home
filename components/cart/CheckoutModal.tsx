@@ -514,6 +514,26 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         },
       }),
     }).catch((err) => console.error('[admin-email] fetch error:', err))
+
+    // Fire-and-forget: mensaje WhatsApp al cliente si eligió esa notificación
+    if (notifyByWhatsapp && customerData.phone.trim()) {
+      const rawPhone = customerData.phone.trim().replace(/\D/g, '')
+      const formattedPhone = rawPhone.startsWith('591') ? rawPhone : `591${rawPhone}`
+
+      fetch('/api/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: formattedPhone,
+          templateName: 'pedido_recibido',
+          variables: [
+            customerData.name,
+            orderId.substring(0, 8).toUpperCase(),
+            orderTotal.toFixed(2),
+          ],
+        }),
+      }).catch((err) => console.error('[whatsapp] fetch error:', err))
+    }
   }
 
   const handleContinueShopping = () => {
